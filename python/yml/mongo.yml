@@ -1,0 +1,10 @@
+---
+- hosts: "{{ mongo }}"
+  remote_user: root
+  vars_files:
+    - vars/server.yml  
+  tasks:
+    - name: mysql_1
+      command: tar -xzf /root/mongostore.tar.gz -C /docker/volumes/
+    - name: mysql_2
+      command: docker run -d  --name mongo  -p 37017:27017  -v mongostore:/data/db   -e AUTH=no 192.168.2.217:5000/mongo

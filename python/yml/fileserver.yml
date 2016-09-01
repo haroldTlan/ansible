@@ -1,0 +1,8 @@
+---
+- hosts: "{{ master }}"
+  remote_user: root
+  vars_files:
+    - vars/server.yml  
+  tasks:
+    - name: fileserver
+      command: docker service create  --name fileserver -p 9002:9002  --mode=global   192.168.2.217:5000/gw basic_file_server --metaDataAddress " "{{ inside_cloudstor }}":9333" --base /tmp

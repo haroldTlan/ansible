@@ -1,0 +1,10 @@
+---
+- hosts: "{{ master }}"
+  remote_user: root
+  vars_files:
+    - vars/server.yml  
+  tasks:
+    - name: init
+      command: docker swarm init --advertise-addr "{{ master }}"
+    - name: key
+      command: docker swarm join-token worker

@@ -1,0 +1,8 @@
+---
+mysql: 192.168.2.148
+mongo: 192.168.2.149
+master: 192.168.2.149
+worker: 192.168.2.149
+key: docker swarm join     --token SWMTKN-1-19j9wdefbbcicd0mlyo71y50pk2riuuv3vjjfxzxo6sxcxsb73-99m0o17biz98bct4ue2pyoift     192.168.2.149:2377
+public_service: 192.168.2.149
+inside_cloudstor: 192.168.2.149

@@ -1,0 +1,7 @@
+---
+
+- include: mysql.yml
+   # when: "hosts == 'mysql'"
+- include: mongo.yml
+   # when: "hosts == 'db'"
+

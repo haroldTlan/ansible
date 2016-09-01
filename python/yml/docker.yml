@@ -1,0 +1,4 @@
+---
+
+- include: docker_master.yml
+- include: docker_join.yml
