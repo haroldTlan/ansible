@@ -1,0 +1,12 @@
+---
+- hosts: "{{ mysql }}"
+  remote_user: root
+  vars_files:
+    - ../vars/server.yml
+  tasks:
+    - name: stop mysql
+      command: docker stop mysql
+    - name: rm mysql
+      command: docker rm mysql
+    - name: clear mysql
+      command: rm -rf /docker/volumes/mysqlstore/

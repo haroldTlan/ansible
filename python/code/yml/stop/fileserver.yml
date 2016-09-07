@@ -1,0 +1,8 @@
+---
+- hosts: "{{ master }}"
+  remote_user: root
+  vars_files:
+    - ../vars/server.yml
+  tasks:
+    - name: stop fileserver service
+      command: docker service rm fileserver

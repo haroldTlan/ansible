@@ -1,0 +1,19 @@
+---
+- hosts: "{{ store }}"
+  remote_user: root
+  vars_files:
+    - vars/server.yml
+  tasks:
+     - name: push store.py
+       copy: src=/root/copy/store.py dest=/root/store.py
+     - name: begin to build raid,vol,fs
+       command: python ~/store.py build
+     - name: push config.py
+       command: src=/root/copy/store.py dest=/root/store.p
+     - name: join master
+       command: python /root/config.py --mserver=""{{ master }}":9333" --ip=""{{ store }}""
+     - name: join master
+       command: '/etc/init.d/supervisor restart'
+                        
+
+

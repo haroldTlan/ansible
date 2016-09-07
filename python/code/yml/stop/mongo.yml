@@ -1,0 +1,12 @@
+---
+- hosts: "{{ mongo }}"
+  remote_user: root
+  vars_files:
+    - ../vars/server.yml
+  tasks:
+    - name: stop mongo
+      command: docker stop mongo
+    - name: rm mongo
+      command: docker rm mongo
+    - name: clear mongo
+      command: rm -rf /docker/volumes/mongostore/

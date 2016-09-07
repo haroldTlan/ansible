@@ -1,8 +1,0 @@
----
-- hosts: "{{ master }}"
-  remote_user: root
-  vars_files:
-    - vars/server.yml  
-  tasks:
-    - name: web
-      command: docker service create  --name web -p 8081:8081  --mode=global 192.168.2.217:5000/gw   python /root/Server/cloudserver.py --mongo=" "{{ mongo }}":37017" --mysql=" "{{ mysql }}":13306" --url=" "{{ public_service }}":9000" --getak=" "{{ public_service }}":9000" --down=" "{{ public_service }}":9002"

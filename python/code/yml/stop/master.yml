@@ -1,0 +1,8 @@
+---
+- hosts: "{{ master }}"
+  remote_user: root
+  vars_files:
+    - ../vars/server.yml
+  tasks:
+    - name: leave swarm
+      command: docker swarm leave --force

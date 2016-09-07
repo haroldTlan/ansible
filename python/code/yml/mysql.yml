@@ -1,0 +1,10 @@
+---
+- hosts: "{{ mysql }}"
+  remote_user: root
+  vars_files:
+    - vars/server.yml
+  tasks:
+    - name: tar mysqlstore
+      command: tar -xzf /root/mysqlstore.tar.gz -C /docker/volumes/
+    - name: running docker mysql
+      command: docker run -d --name mysql  -p 13306:3306  -v  mysqlstore:/var/lib/mysql --restart=always -e MYSQL_ROOT_PASSWORD=passwd 192.168.2.217:5000/mysql

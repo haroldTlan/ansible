@@ -1,0 +1,18 @@
+---
+- hosts: "{{ master }}"
+  remote_user: root
+  vars_files:
+    - vars/server.yml  
+  tasks:
+    - name: push conf-master
+      copy: src=/root/copy/config-master.py dest=/root/config-master.py
+    - name: conf-master init
+      command: 'python /root/config-master.py --ip="{{ master }}"'
+    - name: hostname init
+      command: hostname -F /etc/hostname
+    - name: supervisor restart
+      command: /etc/init.d/supervisor restart
+    - name: docker swarm init
+      command: docker swarm init --advertise-addr "{{ master }}"
+    - name: refresh key
+      command: docker swarm join-token worker

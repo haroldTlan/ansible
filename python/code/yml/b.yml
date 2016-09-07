@@ -1,0 +1,14 @@
+---
+- hosts: "{{ mul }}"
+  remote_user: root
+  gather_facts: false
+  vars_files:
+    - vars/server.yml  
+  tasks:
+    - name: conf
+      shell: echo ""{{ ansible_play_hosts }}"" >> ~/temp.sh
+      #with_items: "{{ play_hosts }}"
+    - name: conf2
+      shell: echo ""{{ play_hosts }}"" >> ~/temp.sh
+
+#      shell: echo ""{{ groups['mul'] }}"" >> ~/temp.sh
