@@ -78,6 +78,15 @@ type Setting struct {
 	Status      bool
 }
 
+type Journals struct {
+	Uid             int       `beedb:"PK"`
+	Created_at      time.Time `orm:"index"`
+	Updated_at      time.Time `orm:"index"`
+	Level           string
+	Message         string
+	Chinese_message string
+}
+
 func Initdb() {
 	db, err := sql.Open("mymysql", "speediodb/root/passwd")
 	if err != nil {
@@ -308,6 +317,20 @@ func InsertCloudSetting(settingtype string, ip string, status bool) error {
 	return nil
 }
 
+func InsertJournals(level string, message string, chinese_message string) error {
+	var buk Journals
+	buk.Created_at = time.Now()
+	buk.Updated_at = time.Now()
+	buk.Level = level
+	buk.Message = message
+	buk.Chinese_message = chinese_message
+	if err := orm.Save(&buk); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func SelectCloudSetting() ([]Setting, error) {
 	//get all data
 	var buks []Setting
@@ -317,8 +340,26 @@ func SelectCloudSetting() ([]Setting, error) {
 	return buks, nil
 }
 
+func Selectjournals() ([]Journals, error) {
+	//get all data
+	var buks []Journals
+	if err := orm.FindAll(&buks); err != nil {
+		return buks, err
+	}
+	return buks, nil
+}
+
 func ClearCloudSetting(stoptype string, ip string) error {
 	_, err := orm.SetTable("setting").Where("Settingtype=? and ip=?", stoptype, ip).DeleteRow()
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+func ClearJournals() error {
+	_, err := orm.SetTable("journals").DeleteRow()
 
 	if err != nil {
 		return err

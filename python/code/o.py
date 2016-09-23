@@ -31,7 +31,7 @@ formatter = logging.Formatter('%(asctime)s - %(name)s - %(message)s')
 fh.setFormatter(formatter)
 logger.addHandler(fh)
     
-
+#push log to /var/log/ansible.log
 def ansible_log(res_obj):
     res=res_obj._result
     
@@ -43,6 +43,7 @@ def ansible_log(res_obj):
     log_info = u'{0}: {1} {2}'.format(res_obj._host, res_obj._task, info)
     logger.info(log_info)
 
+#get result output
 class ResultsCollector(CallbackBase):
     def __init__(self, *args, **kwargs):
         super(ResultsCollector, self).__init__(*args, **kwargs)
@@ -76,10 +77,6 @@ class Options(object):
         return None
 
 options = Options()
-
-def trans(strings):
-    string = strings.replace('\'','\"')
-    return json.loads(string)
 
 def run_adhoc(ip,order):
     variable_manager.extra_vars={"ansible_ssh_user":"root" , "ansible_ssh_pass":"passwd"}
@@ -133,11 +130,7 @@ def run_playbook(books):
         return callback
 
     except Exception as e:
-        # ('run_playbook:%s'%e)
         print "error"
 
 if __name__ == '__main__':
     run_playbook("yml/docker_master.yml")
-    #order= "docker swarm join     --token SWMTKN-1-2iz0i3evtuous8rksj5mc9uuhs0ytwdcnkke6407dmpl69187a-8svnkz3dqykisk14ust2n0ku4     192.168.2.148:2377"
-    #run_adhoc("192.168.2.149", order)
-    #docker_init()

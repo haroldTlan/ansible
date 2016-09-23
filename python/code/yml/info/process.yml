@@ -1,0 +1,15 @@
+---
+- hosts: "{{ master }}"
+  remote_user: root
+  gather_facts: false
+  vars_files:
+    - ../vars/server.yml
+  tasks:
+    - name: info
+      command: python /root/systemmonitor/info.py
+#    - name: process
+#      command: python /root/systemmonitor/processlist.py
+#    - name: networkflow
+#      command: python /root/systemmonitor/networkflow.py
+#    - name: cache
+#      command: python /root/systemmonitor/tmpmonitor.py

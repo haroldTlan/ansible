@@ -1,0 +1,14 @@
+---
+- hosts: "{{ master }}"
+  remote_user: root
+  gather_facts: false
+  vars_files:
+    - ../vars/server.yml
+  tasks:
+      #     - name: push grepweed.py
+      #       copy: src=/root/copy/grepweed.py dest=/root/grepweed.py
+     - name: checknode
+       command: python /root/grepweed.py
+                        
+
+

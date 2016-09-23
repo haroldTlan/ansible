@@ -9,9 +9,9 @@
      - name: begin to build raid,vol,fs
        command: python ~/store.py build
      - name: push config.py
-       command: src=/root/copy/store.py dest=/root/store.p
+       copy: src=/root/copy/config.py dest=/root/config.py
      - name: join master
-       command: python /root/config.py --mserver=""{{ master }}":9333" --ip=""{{ store }}""
+       command: python /root/config.py --mserver=""{{ master }}":9333" --ip=""{{ ansible_eth0.ipv4.address }}""
      - name: join master
        command: '/etc/init.d/supervisor restart'
                         

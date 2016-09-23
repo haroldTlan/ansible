@@ -1,8 +1,9 @@
 ---
 - hosts: "{{ master }}"
   remote_user: root
+  gather_facts: false
   vars_files:
     - vars/server.yml  
   tasks:
     - name: gw
-      command: docker service create  --name gw -p 9000:9000  --mode=global   --mount type=volume,source=/tmp,target=/root/data,readonly=false  192.168.2.217:5000/gw bash -c "/etc/init.d/rabbitmq-server start && /etc/init.d/rsyslog start && rm -rf /root/data/* && minio server --dbAddress "{{ mongo }}":37017 --metaDataAddress "{{ inside_cloudstor }}":9333 /root/data"
+      command: docker service create  --name gw -p 9000:9000  --mode=global   --mount type=volume,source=/tmp,target=/root/data,readonly=false  192.168.2.217:5000/gw bash -c "/etc/init.d/nsq start "{{ inside_cloudstor }}":9333 && /etc/init.d/rsyslog start && rm -rf /root/data/* && minio server --dbAddress "{{ mongo }}":37017 --metaDataAddress "{{ inside_cloudstor }}":9333 /root/data"

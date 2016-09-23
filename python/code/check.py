@@ -7,50 +7,69 @@ from mongocheck import *
 from mysqlcheck import *
 from gatewaycheck import *
 from fileservercheck import *
+from o import *
 #from webcheck import *
 
 parser = argparse.ArgumentParser(description="use bary's check module")
 parser.add_argument("--ip", help="default: --ip=192.168.2.149", default='192.168.2.149')
 parser.add_argument("--checktype", help="default: --checktype=mysql", default='mysql')
 
+aim = "~/code/yml/vars/server.yml"
 
 def checkmodule(ip="192.168.2.149", checktype="mysql"):
-    
+
     if checktype == "mysql":
-        if checkmysql(ip) :
-            return "failed:%d"%checkmysql(ip)
+        if checkmysql(ip) == "success" :
+            results = "?True?%s"%checkmysql(ip)
         else:
-            return "True"
+            results = "?False?%s"%checkmysql(ip)
 
     elif checktype == "mongo":
-        if checkmongo(ip) :
-            return "failed:%d"%checkmongo(ip)
+        if checkmongo(ip) == "success":
+            results = "?True?%s"%checkmongo(ip)
         else:
-            return "True"
+            results = "?False?%s"%checkmongo(ip)
 
 
     elif checktype == "gateway":
         result =  commands.getoutput("python /root/check/gatewaycheck.py --ip=%s"%ip)
-        if result:
-            return "True"
+        if result == "success":
+            results = "?True?%s"%result
         else:
-            return "failed:%d"%result
+            results = "?False?%s"%result
     
 
     elif checktype == "fileserver":
-        result = commands.getoutput("python /root/check/fileservercheck.py --ip=%s"%ip)
-        if result:
-            return "True"
+        if checkport(9002, ip=args.ip):
+            results = "?True?success"
         else:
-            return  "failed:%s"%result
-
-
+            results = "?False?port not open"
+        
     elif checktype == "web":
         if checkport(8081, ip=args.ip):
-            return "True"
+            results = "?True?success"
         else:
-            return "failed"
+            results = "?False?port not open"
 
+    elif checktype == "node":
+        os.system("sed -i 's/master:.*/master: %s/g' %s"% (ip, aim))
+        items = run_playbook("yml/check/node.yml")
+        if items.host_ok:
+            for i in items.host_ok:
+                if i['task'] == 'checknode':
+                    result = i['result']._result['stdout_lines'][0]
+            
+            if "." in result:
+                results = "?True?" + result
+            else:
+                results = "?False?" + result
+        else:
+            results = "?False?port not open"
+
+    else:
+        results = "?False?No such type"
+
+    
 if __name__ == '__main__':
     args = parser.parse_args()
     print checkmodule(args.ip, args.checktype)

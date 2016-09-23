@@ -18,6 +18,65 @@ type DiskInfo struct {
 	Size      string
 }
 
+type LogInfo struct {
+	Level     string
+	LogType   string
+	ChLogType string
+	Result    string
+	ChResult  string
+}
+
+func getLogConfig(logtype string, result bool) LogInfo {
+	var config LogInfo
+
+	switch result {
+	case true:
+		config.Result = "successfully"
+		config.ChResult = "成功"
+
+	case false:
+		config.Result = "unsuccessfully"
+		config.ChResult = "失败"
+
+	default:
+		config.Result = "bullshit"
+		config.ChResult = "不可能，要是出现我吃翔三斤"
+
+	}
+
+	switch logtype {
+	case "set":
+		config.Level = "INFO"
+		config.LogType = logtype
+		config.ChLogType = "配置"
+		return config
+	case "check":
+		config.Level = "INFO"
+		config.LogType = logtype
+		config.ChLogType = "检查"
+		return config
+	case "unset":
+		config.Level = "WARNING"
+		config.LogType = logtype
+		config.ChLogType = "解除"
+		return config
+	case "error":
+		config.Level = "ERROR"
+		config.LogType = logtype
+		config.ChLogType = "错误"
+		return config
+	case "over":
+		config.Level = "WARNING"
+		config.LogType = logtype
+		config.ChLogType = "警告"
+		return config
+	default:
+		return config
+
+	}
+
+}
+
 func NewDiskInfo(machineId string) *DiskInfo {
 	return &DiskInfo{MachineId: machineId}
 }

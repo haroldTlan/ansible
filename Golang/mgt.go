@@ -13,7 +13,6 @@ import (
 	"snmpserver/web"
 	"strconv"
 
-	//"reflect"
 	"net"
 	"os/exec"
 	"strings"
@@ -24,12 +23,10 @@ import (
 	enclId string
 }*/
 
-type Success struct {
+type CmdRes struct {
 	Status string
 	Info   string
 }
-
-var result Success
 
 type Session struct {
 	Id int32 `json:"login_id"`
@@ -90,6 +87,8 @@ func Serve() {
 					router.HandleFunc("/api/cloudcheck", web.JsonResponse(cloudCheck)).Methods("POST")
 					router.HandleFunc("/api/cloudstop", web.JsonResponse(cloudServiceStop)).Methods("POST")
 					router.HandleFunc("/api/cloudtemp", web.JsonResponse(cloudTemp)).Methods("POST")
+					router.HandleFunc("/api/journals", web.JsonResponse(getJournals)).Methods("GET")
+					router.HandleFunc("/api/journalsdel", web.JsonResponse(delJournals)).Methods("POST")
 
 					fmt.Println("step2\n")
 				}
@@ -97,7 +96,6 @@ func Serve() {
 		}
 	}
 
-	ServeStat()
 	TrapServer()
 	Rundb()
 
@@ -107,35 +105,25 @@ func Serve() {
 }
 
 func cloudSetting(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	//worker := r.FormValue("worker")
 	settingtype := r.FormValue("settingtype")
 	ip := r.FormValue("ip")
-	var out []byte
-	var err error
 
-	if settingtype == "master" {
-		out, err = exec.Command("/bin/sh", "-c", fmt.Sprintf("python /root/code/new.py %s=%s", settingtype, ip)).Output()
+	out, err := exec.Command("/bin/sh", "-c", fmt.Sprintf("python /root/code/new.py %s=%s", settingtype, ip)).Output()
+	if err != nil {
+		return string(out), err
+	}
+
+	results := stupidCmd(string(out))
+
+	if (settingtype != "worker") && (results.Status == "True") {
+		err = InsertCloudSetting(settingtype, ip, results.Status == "True")
+
 		if err != nil {
 			return string(out), err
 		}
-		//out, err = exec.Command("/bin/sh", "-c", fmt.Sprintf("python /root/code/new.py %s=%s", worker, ip)).Output()
-
-	} else {
-		out, err = exec.Command("/bin/sh", "-c", fmt.Sprintf("python /root/code/new.py %s=%s", settingtype, ip)).Output()
-
 	}
-
-	if settingtype != "worker" {
-		err = InsertCloudSetting(settingtype, ip, string(out) == "True\n")
-	}
-
-	if string(out) == "True\n" {
-		result.Status = "True"
-		return result, err
-	} else {
-		result.Status = "False"
-		return result, err
-	}
+	addLogtoChan(ip, settingtype, "set", err, results.Status == "True")
+	return results, err
 }
 
 func getcloudSetting(w http.ResponseWriter, r *http.Request) (interface{}, error) {
@@ -150,37 +138,63 @@ func cloudCheck(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	ip := r.FormValue("ip")
 	checktype := r.FormValue("checktype")
 	out, err := exec.Command("/bin/sh", "-c", fmt.Sprintf("python /root/code/check.py --ip=%s --checktype=%s", ip, checktype)).Output()
-
-	if string(out) == "True\n" {
-		result.Status = "True"
-		return result, err
-	} else {
-		result.Status = "False"
-		result.Info = string(out)
-		return result, err
+	if err != nil {
+		return string(out), err
 	}
 
+	results := stupidCmd(string(out))
+	if results.Status == "True" {
+		err = InsertCloudSetting(checktype, ip, results.Status == "True")
+	} else {
+		err = InsertCloudSetting(checktype, ip, results.Status == "True")
+	}
+	addLogtoChan(ip, stoptype, "check", err, results.Status == "True")
+
+	return results, err
 }
 
 func cloudServiceStop(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	stoptype := r.FormValue("stoptype")
 	ip := r.FormValue("ip")
 	out, err := exec.Command("/bin/sh", "-c", fmt.Sprintf("python /root/code/stop.py --stoptype=%s --ip=%s", stoptype, ip)).Output()
-
-	if string(out) == "True\n" {
-		err = ClearCloudSetting(stoptype, ip)
-		result.Status = "True"
-		return result, err
-	} else {
-		result.Status = "False"
-		return result, err
+	if err != nil {
+		return string(out), err
 	}
+
+	results := stupidCmd(string(out))
+	if results.Status == "True" {
+		err = ClearCloudSetting(stoptype, ip)
+	}
+	addLogtoChan(ip, stoptype, "unset", err, results.Status == "True")
+
+	return results, err
 }
 
 func cloudTemp(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	var result CmdRes
 	stoptype := r.FormValue("stoptype")
 	ip := r.FormValue("ip")
+
 	err := ClearCloudSetting(stoptype, ip)
+	if err != nil {
+		result.Status = "False"
+		return result, err
+	}
+	result.Status = "True"
+	return result, err
+}
+
+func getJournals(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	journals, err := Selectjournals()
+	if err != nil {
+		return journals, err
+	}
+	return journals, nil
+}
+
+func delJournals(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	var result CmdRes
+	err := ClearJournals()
 	if err != nil {
 		result.Status = "False"
 		return result, err
@@ -262,5 +276,33 @@ func replySN(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 		return nil, err
 	} else {
 		return map[string]string{"sn": sn}, nil
+	}
+}
+
+func stupidCmd(out string) CmdRes {
+	var result CmdRes
+
+	pure := strings.Replace(string(out), "\n", "", -1)
+
+	results := strings.Split(pure, "?")
+	result.Status = results[1]
+	result.Info = results[2]
+
+	return result
+
+}
+
+func addLogtoChan(ip string, sertype string, logtype string, err error, result bool) {
+	var isGUILog bool
+	if isGUILog {
+		//when goansible ,TODO
+	}
+	config := getLogConfig(logtype, result)
+
+	if err == nil {
+		_ = InsertJournals(config.Level, fmt.Sprintf("Server %s %s %s ", ip, logtype, sertype, config.Result), fmt.Sprintf("服务器 %s %s %s %s", ip, config.ChLogType, sertype, config.ChResult))
+
+	} else {
+		_ = InsertJournals(config.Level, fmt.Sprintf("%s %s", logtype, err), fmt.Sprintf("%s %s 操作错误", config.ChLogType, err))
 	}
 }

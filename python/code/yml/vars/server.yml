@@ -1,10 +1,10 @@
 ---
-mysql: 192.168.2.104
-mongo: 192.168.2.104
-master: 192.168.2.105
+mysql: 192.168.2.105
+mongo: 192.168.2.105
+master: 192.168.2.104
 worker: 192.168.2.149
-store: 192.168.2.101
-key: docker swarm join     --token SWMTKN-1-2wh4nnemsniqy4ij535up5fu7ig8vmt7hakgre5nlsou5aaarq-ee9mtvc1kwct8c9waa0fvar33     192.168.2.105:2377
-public_service: 192.168.2.104
-inside_cloudstor: 192.168.2.104
+store: 192.168.2.102
+key: docker swarm join     --token SWMTKN-1-3k7jlob5ywgizh2dl7o42xh0kwb1oqb5y746o58r36d0xfz4iz-afdu9wl8v9gt6ytv2vob9n8ql     192.168.2.105:2377
+public_service: 192.168.2.105
+inside_cloudstor: 192.168.2.105
 mul: 192.168.2.101,192.168.2.102
