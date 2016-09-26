@@ -89,7 +89,8 @@ func Serve() {
 					router.HandleFunc("/api/cloudtemp", web.JsonResponse(cloudTemp)).Methods("POST")
 					router.HandleFunc("/api/journals", web.JsonResponse(getJournals)).Methods("GET")
 					router.HandleFunc("/api/journalsdel", web.JsonResponse(delJournals)).Methods("POST")
-
+					router.HandleFunc("/api/cloudredisks", web.JsonResponse(cloudReDisks)).Methods("POST")
+					router.HandleFunc("/api/cloudreraids", web.JsonResponse(cloudReRaids)).Methods("POST")
 					fmt.Println("step2\n")
 				}
 			}
@@ -148,7 +149,7 @@ func cloudCheck(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	} else {
 		err = InsertCloudSetting(checktype, ip, results.Status == "True")
 	}
-	addLogtoChan(ip, stoptype, "check", err, results.Status == "True")
+	addLogtoChan(ip, checktype, "check", err, results.Status == "True")
 
 	return results, err
 }
@@ -193,6 +194,7 @@ func getJournals(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 }
 
 func delJournals(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+
 	var result CmdRes
 	err := ClearJournals()
 	if err != nil {
@@ -201,6 +203,26 @@ func delJournals(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	}
 	result.Status = "True"
 	return result, err
+}
+
+func cloudReDisks(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	ip := r.FormValue("ip")
+	RemoteInitdb(ip)
+	redisks, err := RemoteDisks()
+	if err != nil {
+		return redisks, err
+	}
+	return redisks, nil
+}
+
+func cloudReRaids(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	ip := r.FormValue("ip")
+	RemoteInitdb(ip)
+	raids, err := RemoteRaids()
+	if err != nil {
+		return raids, err
+	}
+	return raids, nil
 }
 
 func getIfaces(w http.ResponseWriter, r *http.Request) (interface{}, error) {
@@ -237,8 +259,14 @@ func createSession(w http.ResponseWriter, r *http.Request) (interface{}, error) 
 func addMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	uuid := r.FormValue("uuid")
 	ip := r.FormValue("ip")
+	RemoteInitdb(ip)
 	slotnr, _ := strconv.Atoi(r.FormValue("slotnr"))
 	err := InsertMachine(uuid, ip, slotnr)
+	if err != nil {
+		return nil, err
+	}
+	err = InsertRemoteDisks(uuid)
+
 	return nil, err
 }
 

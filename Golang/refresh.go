@@ -46,27 +46,27 @@ func getLogConfig(logtype string, result bool) LogInfo {
 
 	switch logtype {
 	case "set":
-		config.Level = "INFO"
+		config.Level = "info"
 		config.LogType = logtype
 		config.ChLogType = "配置"
 		return config
 	case "check":
-		config.Level = "INFO"
+		config.Level = "info"
 		config.LogType = logtype
 		config.ChLogType = "检查"
 		return config
 	case "unset":
-		config.Level = "WARNING"
+		config.Level = "warning"
 		config.LogType = logtype
 		config.ChLogType = "解除"
 		return config
 	case "error":
-		config.Level = "ERROR"
+		config.Level = "error"
 		config.LogType = logtype
 		config.ChLogType = "错误"
 		return config
 	case "over":
-		config.Level = "WARNING"
+		config.Level = "warning"
 		config.LogType = logtype
 		config.ChLogType = "警告"
 		return config

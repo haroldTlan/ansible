@@ -14,6 +14,13 @@ CREATE TABLE `disk` (
  `uuid` VARCHAR(64),
  `location` VARCHAR(64),
  `machineId` VARCHAR(64),
+ `health` VARCHAR(64),
+ `role` VARCHAR(64),
+ `cap_sector` INT(11),
+ `raid` VARCHAR(64),
+ `vendor` VARCHAR(64),
+ `model` VARCHAR(64),
+ `sn` VARCHAR(64),
  `created` DATETIME DEFAULT NULL,
  PRIMARY KEY (`uid`)
 );
@@ -37,6 +44,41 @@ type Disk struct {
 	MachineId  string
 	Created    time.Time `orm:"index"`
 }*/
+var re_orm beedb.Model
+
+type Disks struct { //the table'name is disk
+	Uuid       string
+	Health     string
+	Role       string
+	Location   string
+	Raid       string
+	Cap_Sector int64
+	Vendor     string
+	Model      string
+	Sn         string
+}
+
+/*type Disks struct { //the table'name is disk
+	Uuid       string
+	Health     string
+	Role       string
+	Location   string
+	Raid       string
+	Cap_Sector int64
+	Vendor     string
+	Model      string
+	Sn         string
+	MachineId  string
+}
+*/
+type Raids struct { //the table'name is disk
+	Uuid     string
+	Health   string
+	Level    string
+	Name     string
+	Cap      int64
+	Used_Cap int64
+}
 
 type Disk struct { //the table'name is disk
 	Uid                  int `beedb:"PK"`
@@ -93,8 +135,54 @@ func Initdb() {
 		panic(err)
 	}
 	orm = beedb.New(db)
-	//fmt.Printf("open database\n")
 	return
+}
+
+func RemoteInitdb(ip string) {
+	/*	machines, err := SelectAllMachines()
+		if err != nil {
+						return machines, err
+								}
+
+										if len(machines) < 1 {
+													}*/
+
+	dd, err := sql.Open("mymysql", fmt.Sprintf("tcp:%s:3306*speediodb/root/passwd", ip))
+	if err != nil {
+		panic(err)
+	}
+	re_orm = beedb.New(dd)
+	return
+}
+
+func InsertRemoteDisks(machineId string) error {
+	disks, _ := RemoteDisks()
+
+	if err := orm.Save(&disks); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func RemoteDisks() ([]Disks, error) {
+	var ones []Disks
+	if err := re_orm.FindAll(&ones); err != nil {
+		return ones, err
+	}
+	fmt.Println(ones)
+	return ones, nil
+
+}
+
+func RemoteRaids() ([]Raids, error) {
+	var ones []Raids
+	if err := re_orm.FindAll(&ones); err != nil {
+		return ones, err
+	}
+	fmt.Println(ones)
+	return ones, nil
+
 }
 
 //func InsertdiskInfo(uuid string, location string, machineId string, RawReadErrorRate string, SpinUpTime string, StartStopCount string, ReallocatedSectorCt string, SeekErrorRate string, PowerOnHours string, SpinRetryCount string, PowerCycleCount string, PowerOffRetractCount string, LoadCycleCount string, CurrentPendingSector string, OfflineUncorrectable string, UDMACRCErrorCount string) error{
