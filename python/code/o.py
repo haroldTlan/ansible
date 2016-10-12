@@ -48,35 +48,53 @@ class ResultsCollector(CallbackBase):
     def __init__(self, *args, **kwargs):
         super(ResultsCollector, self).__init__(*args, **kwargs)
         self.host_ok = []
-        self.host_unreachable = {}
-        self.host_failed = {}
+        self.host_unreachable = []
+        self.host_failed = []
 
-    def v2_runner_on_unreachable(self, result):
+    def v2_runner_on_unreachable(self, result, ignore_errors=False):
+        name = result._host.get_name()
+        task = result._task.get_name()
         ansible_log(result)
-        self.host_unreachable[result._host.get_name()] = result
+        #self.host_unreachable[result._host.get_name()] = result
+        self.host_unreachable.append(dict(ip=name, task=task, result=result))
 
     def v2_runner_on_ok(self, result,  *args, **kwargs):
         name = result._host.get_name()
         task = result._task.get_name()
-        if task =='setup':
+        if task == "setup":
             pass
+        elif "Info" in task:
+            self.host_ok.append(dict(ip=name, task=task, result=result))
         else:
             ansible_log(result)
             self.host_ok.append(dict(ip=name, task=task, result=result))
 
-    def v2_runner_on_failed(self, result,  *args, **kwargs):
+    def v2_runner_on_failed(self, result,   *args, **kwargs):
+        name = result._host.get_name()
+        task = result._task.get_name()
         ansible_log(result)
-        self.host_failed[result._host.get_name()] = result
+        #import pdb
+        #pdb.set_trace()
+        #self.host_failed[result._host.get_name()] = result
+        self.host_failed.append(dict(ip=name, task=task, result=result))
 
 class Options(object):
     def __init__(self):
         self.connection = "smart"
         self.forks = 10
         self.check = False
+        self.become = None
+        self.become_method = None
+        self.become_user=None
+        module_path='/usr/local/lib/python2.7/dist-packages/ansible-2.2.0-py2.7.egg/ansible/modules'
     def __getattr__(self, name):
         return None
 
 options = Options()
+
+def trans(strings):
+    string = strings.replace('\'','\"')
+    return json.loads(string)
 
 def run_adhoc(ip,order):
     variable_manager.extra_vars={"ansible_ssh_user":"root" , "ansible_ssh_pass":"passwd"}
@@ -107,7 +125,6 @@ def run_adhoc(ip,order):
 
 def run_playbook(books):
     results_callback = callback_loader.get('json')
-    #playbooks=['yml/docker.yml']
     playbooks = [books]
 
     variable_manager.extra_vars={"ansible_ssh_user":"root" , "ansible_ssh_pass":"passwd"}
@@ -130,7 +147,12 @@ def run_playbook(books):
         return callback
 
     except Exception as e:
+        # ('run_playbook:%s'%e)
         print "error"
+        print e
 
 if __name__ == '__main__':
-    run_playbook("yml/docker_master.yml")
+    run_playbook("yml/info/process.yml")
+    #order= "docker swarm join     --token SWMTKN-1-2iz0i3evtuous8rksj5mc9uuhs0ytwdcnkke6407dmpl69187a-8svnkz3dqykisk14ust2n0ku4     192.168.2.148:2377"
+    #run_adhoc("192.168.2.149", "ifconfig")
+    #docker_init()

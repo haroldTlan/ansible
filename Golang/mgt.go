@@ -32,6 +32,22 @@ type Session struct {
 	Id int32 `json:"login_id"`
 }
 
+type View struct {
+	Disk       []Disk
+	NumOfDisks int64
+	Raid       []Raid
+	NumOfRaids int64
+
+	Vol       []Volume
+	NumOfVols int64
+
+	Fs      []Filesystems
+	NumOfFs int64
+
+	Initiator       []Initiator
+	NumOfInitiators int64
+}
+
 func FromBase10(base10 string) *big.Int {
 	i, ok := new(big.Int).SetString(base10, 10)
 	if !ok {
@@ -78,8 +94,16 @@ func Serve() {
 				if true {
 					router.HandleFunc("/api/sessions", web.JsonResponse(createSession)).Methods("POST")
 					router.HandleFunc("/api/machines/{uuid}/disks", web.JsonResponse(getDisksOfMachine)).Methods("GET")
+					router.HandleFunc("/api/machines/{uuid}/raids", web.JsonResponse(getRaidsOfMachine)).Methods("GET")
+					router.HandleFunc("/api/machines/{uuid}/volumes", web.JsonResponse(getVolumesOfMachine)).Methods("GET")
+					router.HandleFunc("/api/machines/{uuid}/filesystems", web.JsonResponse(getFilesystemsOfMachine)).Methods("GET")
+					router.HandleFunc("/api/machines/{uuid}/initiators", web.JsonResponse(getInitiatorsOfMachine)).Methods("GET")
 					router.HandleFunc("/api/machines", web.JsonResponse(addMachines)).Methods("POST")
 					router.HandleFunc("/api/machines", web.JsonResponse(getMachines)).Methods("GET")
+					router.HandleFunc("/api/machines/{uuid}", web.JsonResponse(delMachines)).Methods("DELETE")
+					router.HandleFunc("/api/machine", web.JsonResponse(flushMachines)).Methods("POST")
+
+					router.HandleFunc("/api/storeviews", web.JsonResponse(getStoreview)).Methods("GET")
 					router.HandleFunc("/api/ifaces", web.JsonResponse(getIfaces)).Methods("GET")
 					router.HandleFunc("/api/systeminfo", web.JsonResponse(getSysteminfo)).Methods("GET")
 					router.HandleFunc("/api/cloudset", web.JsonResponse(cloudSetting)).Methods("POST")
@@ -89,8 +113,12 @@ func Serve() {
 					router.HandleFunc("/api/cloudtemp", web.JsonResponse(cloudTemp)).Methods("POST")
 					router.HandleFunc("/api/journals", web.JsonResponse(getJournals)).Methods("GET")
 					router.HandleFunc("/api/journalsdel", web.JsonResponse(delJournals)).Methods("POST")
-					router.HandleFunc("/api/cloudredisks", web.JsonResponse(cloudReDisks)).Methods("POST")
-					router.HandleFunc("/api/cloudreraids", web.JsonResponse(cloudReRaids)).Methods("POST")
+					router.HandleFunc("/api/clouddisks", web.JsonResponse(getDisks)).Methods("GET")
+					router.HandleFunc("/api/cloudraids", web.JsonResponse(getRaids)).Methods("GET")
+					router.HandleFunc("/api/cloudvolumes", web.JsonResponse(getVolumes)).Methods("GET")
+					router.HandleFunc("/api/cloudfilesystems", web.JsonResponse(getFileSystems)).Methods("GET")
+					router.HandleFunc("/api/temp/{uuid}", web.JsonResponse(temp)).Methods("GET")
+
 					fmt.Println("step2\n")
 				}
 			}
@@ -105,6 +133,242 @@ func Serve() {
 	http.ListenAndServe(":8008", sio)
 }
 
+func temp(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	uuid := vars["uuid"]
+
+	//uuid := "73b9f5ca-4d73-ded8-0cb8-7c0478375aae1921682103"
+	if err := RefreshReNetInits(uuid); err != nil {
+		return nil, err
+	}
+
+	redisks, err := SelectNetInitsOfMachine(uuid)
+	if err != nil {
+		return redisks, err
+	}
+	return redisks, nil
+}
+
+func addMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	uuid := r.FormValue("uuid")
+	ip := r.FormValue("ip")
+	slotnr, _ := strconv.Atoi(r.FormValue("slotnr"))
+
+	err := InsertMachine(uuid, ip, slotnr)
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, err
+}
+
+func getMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	machines, err := SelectAllMachines()
+	if err != nil {
+		return machines, err
+	}
+	return machines, nil
+}
+
+func delMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	uuid := vars["uuid"]
+	if err := DeleteMachine(uuid); err != nil {
+		fmt.Println("??")
+		fmt.Println(err)
+		return nil, err
+	}
+
+	return nil, nil
+}
+
+func flushMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	uuid := r.FormValue("uuid")
+	if err := RefreshViews(uuid); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+}
+
+/*func getDisksOfMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+
+	vars := mux.Vars(r)
+	uuid := vars["uuid"]
+
+	machine, err := SelectMachine(uuid)
+	if err != nil {
+		return nil, nil
+	}
+
+	RefreshDisks(machine.Ip, uuid)
+	//RefreshDisks("192.168.2.132", uuid)
+	disks, _ := SelectDisksOfMachine(uuid)
+	return disks, nil
+}*/
+
+func getStoreview(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	RefreshAllViews()
+
+	disks, disks_num, err := SelectDisks()
+	if err != nil {
+		return nil, err
+	}
+	raids, raids_num, err := SelectRaids()
+	if err != nil {
+		return nil, err
+	}
+	vols, vols_num, err := SelectVolumes()
+	if err != nil {
+		return nil, err
+	}
+	fs, fs_num, err := SelectFilesystems()
+	if err != nil {
+		return nil, err
+	}
+	inits, inits_num, err := SelectInitiators()
+	if err != nil {
+		return nil, err
+	}
+
+	views := View{Disk: disks, NumOfDisks: disks_num, Raid: raids, NumOfRaids: raids_num, Vol: vols, NumOfVols: vols_num, Fs: fs, NumOfFs: fs_num, Initiator: inits, NumOfInitiators: inits_num}
+
+	return views, nil
+}
+
+func getDisksOfMachine(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	uuid := vars["uuid"]
+
+	//uuid := "73b9f5ca-4d73-ded8-0cb8-7c0478375aae1921682103"
+	if err := RefreshReDisks(uuid); err != nil {
+		return nil, err
+	}
+
+	redisks, err := SelectDisksOfMachine(uuid)
+	if err != nil {
+		return redisks, err
+	}
+	return redisks, nil
+}
+
+func getRaidsOfMachine(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	uuid := vars["uuid"]
+
+	if err := RefreshReRaids(uuid); err != nil {
+		return nil, err
+	}
+
+	reraids, err := SelectRaidsOfMachine(uuid)
+	if err != nil {
+		return reraids, err
+	}
+	return reraids, nil
+}
+
+func getVolumesOfMachine(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	uuid := vars["uuid"]
+
+	if err := RefreshReVolumes(uuid); err != nil {
+		return nil, err
+	}
+
+	revolumes, err := SelectVolumesOfMachine(uuid)
+	if err != nil {
+		return revolumes, err
+	}
+	return revolumes, nil
+}
+
+func getFilesystemsOfMachine(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	uuid := vars["uuid"]
+
+	if err := RefreshReFilesystems(uuid); err != nil {
+		return nil, err
+	}
+
+	refs, err := SelectFilesystemsOfMachine(uuid)
+	if err != nil {
+		return refs, err
+	}
+	return refs, nil
+}
+
+func getInitiatorsOfMachine(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	uuid := vars["uuid"]
+
+	if err := RefreshReInitiators(uuid); err != nil {
+		return nil, err
+	}
+
+	refs, err := SelectInitiatorsOfMachine(uuid)
+	if err != nil {
+		return refs, err
+	}
+	return refs, nil
+}
+func getDisks(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	ip := r.FormValue("ip")
+	raids, err := RemoteRaids()
+	fmt.Println(ip)
+	if err != nil {
+		return raids, err
+	}
+	return raids, nil
+}
+
+func getRaids(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	ip := r.FormValue("ip")
+	raids, err := RemoteRaids()
+	fmt.Println(ip)
+	if err != nil {
+		return raids, err
+	}
+	return raids, nil
+}
+
+func getVolumes(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	return nil, nil
+}
+func getFileSystems(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	return nil, nil
+}
+
+func getIfaces(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	info, _ := net.InterfaceAddrs()
+	ifaces := make([]string, 0)
+	for _, addr := range info {
+		ifaces = append(ifaces, strings.Split(addr.String(), "/")[0])
+	}
+
+	//addLogtoChan("getIfaces", nil, false)
+	return ifaces, nil
+}
+
+func getSysteminfo(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	feature := make([]string, 0)
+	feature = append(feature, "xfs")
+
+	systeminfo := make(map[string]interface{})
+	systeminfo["gui version"] = "2.7.3"
+	systeminfo["version"] = "2.2"
+	systeminfo["feature"] = feature
+
+	//addLogtoChan("getSysteminfo", nil, false)
+	return systeminfo, nil
+}
+
+func createSession(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	var sess Session
+	sess.Id = 111
+
+	return &sess, nil
+}
+
 func cloudSetting(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	settingtype := r.FormValue("settingtype")
 	ip := r.FormValue("ip")
@@ -116,13 +380,13 @@ func cloudSetting(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 
 	results := stupidCmd(string(out))
 
-	if (settingtype != "worker") && (results.Status == "True") {
-		err = InsertCloudSetting(settingtype, ip, results.Status == "True")
+	//if (settingtype != "worker") && (results.Status == "True") {
+	err = InsertCloudSetting(settingtype, ip, results.Status == "True")
 
-		if err != nil {
-			return string(out), err
-		}
+	if err != nil {
+		return string(out), err
 	}
+
 	addLogtoChan(ip, settingtype, "set", err, results.Status == "True")
 	return results, err
 }
@@ -149,7 +413,7 @@ func cloudCheck(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	} else {
 		err = InsertCloudSetting(checktype, ip, results.Status == "True")
 	}
-	addLogtoChan(ip, checktype, "check", err, results.Status == "True")
+	//addLogtoChan(ip, checktype, "check", err, results.Status == "True")
 
 	return results, err
 }
@@ -203,95 +467,6 @@ func delJournals(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	}
 	result.Status = "True"
 	return result, err
-}
-
-func cloudReDisks(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	ip := r.FormValue("ip")
-	RemoteInitdb(ip)
-	redisks, err := RemoteDisks()
-	if err != nil {
-		return redisks, err
-	}
-	return redisks, nil
-}
-
-func cloudReRaids(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	ip := r.FormValue("ip")
-	RemoteInitdb(ip)
-	raids, err := RemoteRaids()
-	if err != nil {
-		return raids, err
-	}
-	return raids, nil
-}
-
-func getIfaces(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	info, _ := net.InterfaceAddrs()
-	ifaces := make([]string, 0)
-	for _, addr := range info {
-		ifaces = append(ifaces, strings.Split(addr.String(), "/")[0])
-	}
-
-	//addLogtoChan("getIfaces", nil, false)
-	return ifaces, nil
-}
-
-func getSysteminfo(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	feature := make([]string, 0)
-	feature = append(feature, "xfs")
-
-	systeminfo := make(map[string]interface{})
-	systeminfo["gui version"] = "2.7.3"
-	systeminfo["version"] = "2.2"
-	systeminfo["feature"] = feature
-
-	//addLogtoChan("getSysteminfo", nil, false)
-	return systeminfo, nil
-}
-
-func createSession(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	var sess Session
-	sess.Id = 111
-
-	return &sess, nil
-}
-
-func addMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	uuid := r.FormValue("uuid")
-	ip := r.FormValue("ip")
-	RemoteInitdb(ip)
-	slotnr, _ := strconv.Atoi(r.FormValue("slotnr"))
-	err := InsertMachine(uuid, ip, slotnr)
-	if err != nil {
-		return nil, err
-	}
-	err = InsertRemoteDisks(uuid)
-
-	return nil, err
-}
-
-func getMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	machines, err := SelectAllMachines()
-	if err != nil {
-		return machines, err
-	}
-	return machines, nil
-}
-
-func getDisksOfMachine(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-
-	vars := mux.Vars(r)
-	uuid := vars["uuid"]
-
-	machine, err := SelectMachine(uuid)
-	if err != nil {
-		return nil, nil
-	}
-
-	RefreshDisks(machine.Ip, uuid)
-	//RefreshDisks("192.168.2.132", uuid)
-	disks, _ := SelectDisksOfMachine(uuid)
-	return disks, nil
 }
 
 func replyVersion(w http.ResponseWriter, r *http.Request) (interface{}, error) {

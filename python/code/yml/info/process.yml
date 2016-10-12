@@ -1,15 +1,14 @@
 ---
-- hosts: "{{ master }}"
+- hosts: "{{ master }},{{store}}"
   remote_user: root
   gather_facts: false
+  ignore_errors: True
   vars_files:
     - ../vars/server.yml
   tasks:
-    - name: info
-      command: python /root/systemmonitor/info.py
-#    - name: process
-#      command: python /root/systemmonitor/processlist.py
-#    - name: networkflow
-#      command: python /root/systemmonitor/networkflow.py
-#    - name: cache
-#      command: python /root/systemmonitor/tmpmonitor.py
+    - name: masterInfo
+      command: python /home/systemmonitor/info.py
+      when: inventory_hostname in "{{master}}"
+    - name: storeInfo
+      command: python /home/systemmonitor/info.py
+      when: inventory_hostname in "{{store}}"
