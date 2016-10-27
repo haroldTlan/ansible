@@ -48,6 +48,14 @@ type View struct {
 	NumOfInitiators int64
 }
 
+type StoreView struct {
+	RestDisks   []ResDisks       `json:"disks"`
+	RestRaids   []ResRaids       `json:"raids"`
+	RestVolumes []ResVols        `json:"volumes"`
+	RestFs      []ResFilesystems `json:"filesystems"`
+	RestInits   []ResInitiators  `json:"initiators"`
+}
+
 func FromBase10(base10 string) *big.Int {
 	i, ok := new(big.Int).SetString(base10, 10)
 	if !ok {
@@ -102,6 +110,7 @@ func Serve() {
 					router.HandleFunc("/api/machines", web.JsonResponse(getMachines)).Methods("GET")
 					router.HandleFunc("/api/machines/{uuid}", web.JsonResponse(delMachines)).Methods("DELETE")
 					router.HandleFunc("/api/machine", web.JsonResponse(flushMachines)).Methods("POST")
+					router.HandleFunc("/api/machine/{uuid}", web.JsonResponse(restMachines)).Methods("GET")
 
 					router.HandleFunc("/api/storeviews", web.JsonResponse(getStoreview)).Methods("GET")
 					router.HandleFunc("/api/ifaces", web.JsonResponse(getIfaces)).Methods("GET")
@@ -113,10 +122,6 @@ func Serve() {
 					router.HandleFunc("/api/cloudtemp", web.JsonResponse(cloudTemp)).Methods("POST")
 					router.HandleFunc("/api/journals", web.JsonResponse(getJournals)).Methods("GET")
 					router.HandleFunc("/api/journalsdel", web.JsonResponse(delJournals)).Methods("POST")
-					router.HandleFunc("/api/clouddisks", web.JsonResponse(getDisks)).Methods("GET")
-					router.HandleFunc("/api/cloudraids", web.JsonResponse(getRaids)).Methods("GET")
-					router.HandleFunc("/api/cloudvolumes", web.JsonResponse(getVolumes)).Methods("GET")
-					router.HandleFunc("/api/cloudfilesystems", web.JsonResponse(getFileSystems)).Methods("GET")
 					router.HandleFunc("/api/temp/{uuid}", web.JsonResponse(temp)).Methods("GET")
 
 					fmt.Println("step2\n")
@@ -138,23 +143,25 @@ func temp(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	uuid := vars["uuid"]
 
 	//uuid := "73b9f5ca-4d73-ded8-0cb8-7c0478375aae1921682103"
-	if err := RefreshReNetInits(uuid); err != nil {
-		return nil, err
-	}
+	/*
+		if err := RefreshReNetInits(uuid); err != nil {
+			return nil, err
+		}
 
-	redisks, err := SelectNetInitsOfMachine(uuid)
-	if err != nil {
-		return redisks, err
-	}
-	return redisks, nil
+		redisks, err := SelectNetInitsOfMachine(uuid)
+		if err != nil {
+			return redisks, err
+		}
+		return redisks, nil*/
+	a, err := resRaids(uuid)
+	return a, err
 }
 
 func addMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	uuid := r.FormValue("uuid")
 	ip := r.FormValue("ip")
 	slotnr, _ := strconv.Atoi(r.FormValue("slotnr"))
 
-	err := InsertMachine(uuid, ip, slotnr)
+	err := InsertMachine(ip, slotnr)
 	if err != nil {
 		return nil, err
 	}
@@ -173,9 +180,7 @@ func getMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 func delMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	vars := mux.Vars(r)
 	uuid := vars["uuid"]
-	if err := DeleteMachine(uuid); err != nil {
-		fmt.Println("??")
-		fmt.Println(err)
+	if err := DelMachine(uuid); err != nil {
 		return nil, err
 	}
 
@@ -184,11 +189,58 @@ func delMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 
 func flushMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	uuid := r.FormValue("uuid")
+	fmt.Println("1")
 	if err := RefreshViews(uuid); err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	fmt.Println("2")
+	rest, err := restApi(uuid)
+	if err != nil {
+		return rest, err
+	}
+
+	return rest, nil
+}
+
+func restMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	uuid := vars["uuid"]
+
+	var store StoreView
+
+	disks, err := resDisks(uuid)
+	if err != nil {
 		return nil, err
 	}
 
-	return nil, nil
+	raids, err := resRaids(uuid)
+	if err != nil {
+		return nil, err
+	}
+
+	vols, err := resVols(uuid)
+	if err != nil {
+		return nil, err
+	}
+
+	fs, err := resFs(uuid)
+	if err != nil {
+		return nil, err
+	}
+
+	inits, err := resInits(uuid)
+	if err != nil {
+		return nil, err
+	}
+
+	store.RestDisks = disks
+	store.RestRaids = raids
+	store.RestVolumes = vols
+	store.RestFs = fs
+	store.RestInits = inits
+
+	return store, nil
 }
 
 /*func getDisksOfMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) {
@@ -245,7 +297,7 @@ func getDisksOfMachine(w http.ResponseWriter, r *http.Request) (interface{}, err
 		return nil, err
 	}
 
-	redisks, err := SelectDisksOfMachine(uuid)
+	redisks, err := resDisks(uuid)
 	if err != nil {
 		return redisks, err
 	}
@@ -260,7 +312,7 @@ func getRaidsOfMachine(w http.ResponseWriter, r *http.Request) (interface{}, err
 		return nil, err
 	}
 
-	reraids, err := SelectRaidsOfMachine(uuid)
+	reraids, err := resRaids(uuid)
 	if err != nil {
 		return reraids, err
 	}
@@ -275,7 +327,7 @@ func getVolumesOfMachine(w http.ResponseWriter, r *http.Request) (interface{}, e
 		return nil, err
 	}
 
-	revolumes, err := SelectVolumesOfMachine(uuid)
+	revolumes, err := resVols(uuid)
 	if err != nil {
 		return revolumes, err
 	}
@@ -304,38 +356,14 @@ func getInitiatorsOfMachine(w http.ResponseWriter, r *http.Request) (interface{}
 	if err := RefreshReInitiators(uuid); err != nil {
 		return nil, err
 	}
-
+	RefreshReRaidVolumes(uuid)
+	RefreshReInitVolumes(uuid)
+	RefreshReNetInits(uuid)
 	refs, err := SelectInitiatorsOfMachine(uuid)
 	if err != nil {
 		return refs, err
 	}
 	return refs, nil
-}
-func getDisks(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	ip := r.FormValue("ip")
-	raids, err := RemoteRaids()
-	fmt.Println(ip)
-	if err != nil {
-		return raids, err
-	}
-	return raids, nil
-}
-
-func getRaids(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	ip := r.FormValue("ip")
-	raids, err := RemoteRaids()
-	fmt.Println(ip)
-	if err != nil {
-		return raids, err
-	}
-	return raids, nil
-}
-
-func getVolumes(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	return nil, nil
-}
-func getFileSystems(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	return nil, nil
 }
 
 func getIfaces(w http.ResponseWriter, r *http.Request) (interface{}, error) {
