@@ -93,7 +93,7 @@ func RefreshDisks(ip string, machineId string) error {
 
 	for _, disk := range disks {
 		fmt.Println(disk.Uuid, disk.Location, disk.MachineId, disk.Status, disk.Role, disk.Raid, disk.Size)
-		UpdateDisk(disk.Uuid, disk.Location, disk.MachineId, disk.Status, disk.Role, disk.Raid, disk.Size)
+		//UpdateDisk(disk.Uuid, disk.Location, disk.MachineId, disk.Status, disk.Role, disk.Raid, disk.Size)
 	}
 
 	return err
@@ -127,4 +127,88 @@ func extractSingleDisk(out string, machineId string) *DiskInfo {
 	disk.Raid = regRaid.FindStringSubmatch(out)[1]
 	disk.Size = regSize.FindStringSubmatch(out)[1]
 	return disk
+}
+
+func RefreshViews(uuid string) error {
+	fmt.Println("ok")
+	if err := RefreshReDisks(uuid); err != nil {
+		return err
+	}
+	if err := RefreshReRaids(uuid); err != nil {
+		return err
+	}
+	if err := RefreshReVolumes(uuid); err != nil {
+		return err
+	}
+	if err := RefreshReFilesystems(uuid); err != nil {
+		return err
+	}
+	if err := RefreshReInitiators(uuid); err != nil {
+		return err
+	}
+
+	if err := RefreshReRaidVolumes(uuid); err != nil {
+		return err
+	}
+	if err := RefreshReInitVolumes(uuid); err != nil {
+		return err
+	}
+	if err := RefreshReNetInits(uuid); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func restApi(uuid string) (StoreView, error) {
+	var store StoreView
+
+	disks, err := resDisks(uuid)
+	if err != nil {
+		return store, err
+	}
+
+	raids, err := resRaids(uuid)
+	if err != nil {
+		return store, err
+	}
+
+	vols, err := resVols(uuid)
+	if err != nil {
+		return store, err
+	}
+
+	fs, err := resFs(uuid)
+	if err != nil {
+		return store, err
+	}
+
+	inits, err := resInits(uuid)
+	if err != nil {
+		return store, err
+	}
+
+	store.RestDisks = disks
+	store.RestRaids = raids
+	store.RestVolumes = vols
+	store.RestFs = fs
+	store.RestInits = inits
+
+	return store, nil
+}
+
+func RefreshAuto() {
+	go func() {
+		machines, _ := SelectAllMachines()
+
+		if len(machines) > 0 {
+			for _, val := range machines {
+				if err := RefreshViews(val.Uuid); err != nil {
+					fmt.Println(err)
+				}
+			}
+		} else {
+		}
+	}()
+
 }
