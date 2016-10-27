@@ -1,9 +1,8 @@
 import sys
 import argparse
-import commands
 from o import *
 
-parser = argparse.ArgumentParser(description="use bary's check module")
+parser = argparse.ArgumentParser(description="stop docker")
 parser.add_argument("--stoptype", help="default: --stoptype=mysql", default='mysql')
 parser.add_argument("--ip", help="default: --ip=192.168.2.149", default='192.168.2.149')
 
@@ -30,6 +29,11 @@ def stopmodule(stoptype="mysql", ip="192.168.2.149"):
         items = run_playbook("yml/stop/mongo.yml")
         results_select(items)
 
+    elif stoptype == "beanstalkd":
+        os.system("sed -i 's/beanstalkd:.*/beanstalkd: %s/g' %s"% (ip, aim))
+        items = run_playbook("yml/stop/beanstalkd.yml")
+        results_select(items)
+
     elif stoptype == "master":
         os.system("sed -i 's/master:.*/master: %s/g' %s"% (ip, aim))
         items = run_playbook("yml/stop/master.yml")
@@ -48,6 +52,11 @@ def stopmodule(stoptype="mysql", ip="192.168.2.149"):
     elif stoptype == "web":
         os.system("sed -i 's/master:.*/master: %s/g' %s"% (ip, aim))
         items = run_playbook("yml/stop/web.yml")
+        results_select(items)
+
+    elif stoptype == "task":
+        os.system("sed -i 's/task:.*/task: %s/g' %s"% (ip, aim))
+        items = run_playbook("yml/stop/task.yml")
         results_select(items)
 
     elif stoptype in irrelevant_service:

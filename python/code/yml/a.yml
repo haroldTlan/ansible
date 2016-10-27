@@ -1,8 +1,9 @@
 ---
-- hosts: "{{ master }}"
-  remote_user: r
+- hosts: "{{ store }}"
+  remote_user: root
+  gather_facts: false
   vars_files:
     - vars/server.yml  
   tasks:
     - name: conf
-      command: echo "asd" >> ~/temp.sh
+      command: echo ""{{ inventory_hostname }}"" >> ~/temp.sh

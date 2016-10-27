@@ -5,10 +5,10 @@
   vars_files:
     - vars/server.yml  
   tasks:
-    - name: push conf-master
-      copy: src=/root/copy/config-master.py dest=/root/config-master.py
+      #    - name: push conf-master
+      #      copy: src=/root/copy/config-master.py dest=/root/config-master.py
     - name: conf-master init
-      command: 'python /root/config-master.py --ip="{{ master }}"'
+      command: 'python /home/monitor/config-master.py --ip="{{ master }}"'
     - name: hostname init
       command: hostname -F /etc/hostname
     - name: supervisor restart

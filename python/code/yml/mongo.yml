@@ -8,4 +8,10 @@
     - name: tar mongostore
       command: tar -xzf /root/mongostore.tar.gz -C /docker/volumes/
     - name: running docker mongo
-      command: docker run -d  --name mongo  -p 37017:27017  -v mongostore:/data/db --restart=always  -e AUTH=no 192.168.2.217:5000/mongo
+      command: docker run -d   --restart=always  --name mongo  -p 37017:27017  -v mongostore:/data/db   -e AUTH=no 192.168.2.217:5000/mongo
+    - name: buffer
+      shell: sleep 4
+    - name: super user
+      command: docker exec -d mongo mongo minio --eval "db.createUser({user:\"root\",pwd:\"passwd\",roles:[{role:\"dbOwner\",db:\"minio\"}]})"
+    - name: init index
+      command: docker exec -d mongo mongo minio -eval "db.s3objects.createIndex({ak:1, name:1})"

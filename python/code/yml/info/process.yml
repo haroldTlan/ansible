@@ -7,8 +7,8 @@
     - ../vars/server.yml
   tasks:
     - name: masterInfo
-      command: python /home/systemmonitor/info.py
+      command: python /home/monitor/systemmonitor/master.py
       when: inventory_hostname in "{{master}}"
     - name: storeInfo
-      command: python /home/systemmonitor/info.py
+      command: python /home/monitor/systemmonitor/store.py
       when: inventory_hostname in "{{store}}"

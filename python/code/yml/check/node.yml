@@ -8,7 +8,7 @@
       #     - name: push grepweed.py
       #       copy: src=/root/copy/grepweed.py dest=/root/grepweed.py
      - name: checknode
-       command: python /root/grepweed.py
+       command: python /home/monitor/grepweed.py
                         
 
 

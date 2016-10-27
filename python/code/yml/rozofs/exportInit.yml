@@ -1,0 +1,8 @@
+---
+- hosts: "{{ export }}"
+  remote_user: root
+  vars_files:
+    - ../vars/rozofs.yml  
+  tasks:
+    - name: exportInit
+      shell: bash /home/monitor/rozofs/exportInit

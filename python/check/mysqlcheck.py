@@ -12,8 +12,8 @@ parser.add_argument("--ip", help="default: --ip=192.168.2.136", default='192.168
 
 def checkmysql(ip="192.168.2.136", port=13306):
     if not checkport(port, ip=ip):
-        # port not open
-        return 1
+        return "port not open"
+        #return 1
     try:
         db = MySQLDatabase('cloud', autocommit=True, user='root', passwd='passwd', threadlocals=True,
                            connect_timeout=300, host=ip
@@ -23,21 +23,22 @@ def checkmysql(ip="192.168.2.136", port=13306):
             if db.get_tables().count("user"):
                 pass
             else:
-                # table named user don't exist
-                return 3
+                return "table named user don't exist"
+                #return 3
         else:
-            # table named ipc don't exist
-            return 4
+            return "table named ipc don't exist"
+            #return 4
         db.close()
-        return 0
+        return "success"
+        #return 0
     except Exception as e:
         try:
             db.close()
         except Exception:
             pass
         print e
-        # can't connect to database cloud
-        return 2
+        return "can't connect to database cloud"
+        #return 2
 
 
 if __name__ == "__main__":

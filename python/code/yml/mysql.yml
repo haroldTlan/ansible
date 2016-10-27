@@ -8,4 +8,8 @@
     - name: tar mysqlstore
       command: tar -xzf /root/mysqlstore.tar.gz -C /docker/volumes/
     - name: running docker mysql
-      command: docker run -d --name mysql  -p 13306:3306  -v  mysqlstore:/var/lib/mysql --restart=always -e MYSQL_ROOT_PASSWORD=passwd 192.168.2.217:5000/mysql
+      command: docker run -d  --restart=always  --name mysql  -p 13306:3306  -v  mysqlstore:/var/lib/mysql  -e MYSQL_ROOT_PASSWORD=passwd 192.168.2.217:5000/mysql
+    - name: buffer
+      shell: sleep 4
+    - name: add unique
+      shell: docker exec -d mysql bash -c "mysql -uroot -ppasswd -Dcloud -e \"alter table \"ipc\" ADD unique(\"AK\");\""

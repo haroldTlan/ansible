@@ -1,0 +1,17 @@
+layout = 0;
+volumes = ( 
+	{
+		vid = 1;
+		cids = ( 
+					
+			 );
+	} );
+exports = ( 
+	{
+		eid = 1;
+		vid = 1;
+		root = "/srv/exports";
+		md5 = "";
+		squota = "10G";
+		hquota = "10G";
+	} );

@@ -1,0 +1,8 @@
+export-hosts = "";
+listen = ( 
+	{
+		addr = "*";
+		port = 41001;
+	} );
+storages = ( 
+	 );

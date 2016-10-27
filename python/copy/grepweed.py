@@ -9,7 +9,8 @@ def getinfo():
     listen = []
     established = []
     if rc != 0:
-        raise Exception(out)
+        #raise Exception(out)
+        print "no service"
     else:
         tmp = out.splitlines()
         ttmp = []
@@ -25,8 +26,12 @@ def getinfo():
                 listen.append(i[3].split(":")[-1])
             if i[5] == "ESTABLISHED":
                 established.append(i[4].split(":")[0])
-        print "listenning in port", ''.join(listen)
-        print "IP had been established is", ','.join(established)
+        #print "listenning in port", ''.join(listen)
+        #print "IP had been established is", ','.join(established)
+        if established:
+            print ','.join(established)
+        else:
+            print 'None'
 
 
 if __name__ == "__main__":

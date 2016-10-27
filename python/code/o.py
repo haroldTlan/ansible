@@ -13,6 +13,9 @@ from ansible.plugins.callback import CallbackBase
 import os
 import logging
 
+import shutil
+import ansible.constants as C
+
 
 loader = DataLoader()
 variable_manager = VariableManager()
@@ -73,14 +76,12 @@ class ResultsCollector(CallbackBase):
         name = result._host.get_name()
         task = result._task.get_name()
         ansible_log(result)
-        #import pdb
-        #pdb.set_trace()
         #self.host_failed[result._host.get_name()] = result
         self.host_failed.append(dict(ip=name, task=task, result=result))
 
 class Options(object):
     def __init__(self):
-        self.connection = "smart"
+        self.connection = "ssh"
         self.forks = 10
         self.check = False
         self.become = None
@@ -144,6 +145,7 @@ def run_playbook(books):
    
     try:
         result = pd.run()
+        shutil.rmtree(C.DEFAULT_LOCAL_TMP, True)
         return callback
 
     except Exception as e:
@@ -152,7 +154,7 @@ def run_playbook(books):
         print e
 
 if __name__ == '__main__':
-    run_playbook("yml/info/process.yml")
+    run_playbook("yml/info/store.yml")
     #order= "docker swarm join     --token SWMTKN-1-2iz0i3evtuous8rksj5mc9uuhs0ytwdcnkke6407dmpl69187a-8svnkz3dqykisk14ust2n0ku4     192.168.2.148:2377"
     #run_adhoc("192.168.2.149", "ifconfig")
     #docker_init()

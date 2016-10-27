@@ -1,19 +1,16 @@
 ---
 - hosts: "{{ store }}"
   remote_user: root
+  gather_facts: false
   vars_files:
     - vars/server.yml
   tasks:
-     - name: push store.py
-       copy: src=/root/copy/store.py dest=/root/store.py
      - name: begin to build raid,vol,fs
-       command: python ~/store.py build
-     - name: push config.py
-       copy: src=/root/copy/config.py dest=/root/config.py
+       command: python /home/monitor/store.py build
+       register: foo_result
      - name: join master
-       command: python /root/config.py --mserver=""{{ master }}":9333" --ip=""{{ ansible_eth0.ipv4.address }}""
+       command: python /home/monitor/config.py --mserver=""{{ storeaim }}":9333" --ip=""{{ inventory_hostname }}""
+       when: foo_result.stdout == "success"
      - name: join master
        command: '/etc/init.d/supervisor restart'
-                        
-
-
+       when: foo_result.stdout == "success"

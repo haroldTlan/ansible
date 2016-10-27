@@ -1,6 +1,7 @@
 import sys
 sys.path.append('/home/zonion/speedio')
 import rest,os
+import subprocess
 
 
 def delete_all():
@@ -96,7 +97,8 @@ def quick_create():
 
     r.disk.format("all")
     if not free:
-        print 'no free disks'
+	print envCheck()
+        #print 'no free disks'
         return
 
     for gro in free:
@@ -132,14 +134,20 @@ def quick_create():
                 print 'unkown exception'
                 return
 
+def envCheck():
+    p1 = subprocess.Popen(['df |grep /nvr/d'],shell=True ,stdout=subprocess.PIPE) 
 
+    lines = p1.stdout.readlines()
+    if len(lines) != 0 :
+        return 'success'
+    else:
+        return 'failed'
 
 
 if __name__ == '__main__':
     r = rest.rest()
-
+ #   envCheck()
     if sys.argv[1] == 'build':
-        print "begin to build~~~~~~~~~~"
         quick_create()
     elif sys.argv[1] == 'del':
         print "begin to clean the env"

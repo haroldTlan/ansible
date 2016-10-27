@@ -1,0 +1,6 @@
+
+cp storage.conf.clean /etc/rozofs/storage.conf
+
+/etc/init.d/rozofs-storaged restart
+/etc/init.d/rozofs-manager-agent restart
+

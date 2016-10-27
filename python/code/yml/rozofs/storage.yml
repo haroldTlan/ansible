@@ -1,0 +1,13 @@
+---
+- hosts: "{{ store }}"
+  remote_user: root
+  vars_files:
+    - ../vars/rozofs.yml  
+  tasks:
+      #    - name: mount fs
+      #command: python /home/monitor/rozofs/load.py
+      #    - name: sleep
+      #      command: sleep 5
+    - name: store build
+      command: python /home/monitor/store.py build
+

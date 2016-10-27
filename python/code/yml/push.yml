@@ -1,0 +1,14 @@
+---
+- hosts: "{{ push }}"
+  remote_user: root
+  gather_facts: false
+  vars_files:
+    - vars/server.yml
+  tasks:
+     - name: push tar
+       copy: src=/home/monitor.tar.gz dest=/home/
+     - name: tar monitor
+       command: tar -xzf /home/monitor.tar.gz -C /home
+                      
+
+

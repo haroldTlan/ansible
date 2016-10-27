@@ -1,0 +1,11 @@
+---
+- hosts: "{{ task }}"
+  remote_user: root
+  gather_facts: false
+  vars_files:
+    - ../vars/server.yml
+  tasks:
+    - name: stop task
+      command: docker stop task
+    - name: rm task
+      command: docker rm task
