@@ -1,0 +1,11 @@
+---
+- hosts: "{{ beanstalkd }}"
+  remote_user: root
+  gather_facts: false
+  vars_files:
+    - ../vars/server.yml
+  tasks:
+    - name: stop beanstalkd
+      command: docker stop beanstalkd
+    - name: rm beanstalkd
+      command: docker rm beanstalkd

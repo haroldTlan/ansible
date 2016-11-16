@@ -6,4 +6,4 @@
     - vars/server.yml  
   tasks:
     - name: gw
-      command: docker service create  --name gw -p 9000:9000  --mode=global   --mount type=volume,source=/tmp,target=/root/data,readonly=false  192.168.2.217:5000/gw bash -c "/etc/init.d/nsq start "{{ inside_cloudstor }}":9333 && /etc/init.d/rsyslog start && rm -rf /root/data/* && minio server --dbAddress "{{ mongo }}":37017 --metaDataAddress "{{ inside_cloudstor }}":9333 /root/data"
+      command: docker run -d  --restart=always --name gw -v /tmp:/root/data -p 9000:9000 -p 80:9000 192.168.2.217:5000/new_gw bash -c " rm -rf /root/data/* &&  /usr/local/bin/minio server --dbAddress "{{ master }}":37017 --metaDataAddress "{{ master }}":9333 --beanstalkdAddress "{{ master }}":11300 /root/data"

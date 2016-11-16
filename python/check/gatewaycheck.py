@@ -34,6 +34,7 @@ def getaclinfo():
                re.findall(r"<SecretAccessKey>.+</SecretAccessKey>",
                           out[1])[0].lstrip(r"<SecretAccessKey>").rstrip(r"</SecretAccessKey>")
     except Exception:
+        print "error"
         time.sleep(4)
 
 
@@ -43,12 +44,13 @@ def handler(signum, frame):
 
 if __name__ == '__main__':
     options = parser.parse_args()
-#    i = 0
     try:
         signal.signal(signal.SIGALRM, handler)
         signal.alarm(3)
-        getaclinfo()
+        print getaclinfo()
         signal.alarm(0)
-        print 0
+        #print 0
+        print "success"
     except AssertionError:
-        print 1
+        #print 1
+        print "port not open"

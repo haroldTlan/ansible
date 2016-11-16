@@ -1,8 +1,0 @@
----
-- hosts: "{{ master }}"
-  remote_user: r
-  vars_files:
-    - vars/server.yml  
-  tasks:
-    - name: conf
-      command: echo "asd" >> ~/temp.sh

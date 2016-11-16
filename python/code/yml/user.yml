@@ -1,0 +1,13 @@
+---
+- hosts: "{{ mongo }}"
+  remote_user: root
+  gather_facts: false
+  vars_files:
+    - vars/server.yml  
+  tasks:
+    - name: super user
+#     shell: docker exec -d mongo mongo minio --eval "db.createUser({user':' )"
+#      command: docker exec -d mongo mongo minio --eval '"db.createUser({user:"root",pwd: "passwd",roles:[{role: "dbOwner",db: "minio"}]})"'
+#      command: docker exec -d mongo mongo minio --eval "db.createUser({user:\"root\",pwd:\"passwd\",roles:[{role:\"dbOwner\",db:\"minio\"}]})"
+#      command: docker exec -d mysql bash -c "mysql -uroot -ppasswd -Dcloud -e \"alter table \"ipc\" ADD unique(\"AK\");\""
+      command: docker exec -d mongo mongo minio -eval "db.s3objects.createIndex({ak:1, name:1})"

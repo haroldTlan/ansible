@@ -12,13 +12,16 @@ parser.add_argument("--ip", help="default: --ip=192.168.2.136", default='192.168
 
 def checkmongo(ip="192.168.2.136", port=37017):
     if not checkport(port, ip=ip):
-        return 1
+        return "port not open"
+        #return 1
     try:
         client = pymongo.MongoClient(ip, port)
         client.database_names()
-        return 0
+        #return 0
+        return "success"
     except Exception:
-        return 2
+        return "can't connect to database cloud"
+        #return 2
 
 
 if __name__ == "__main__":

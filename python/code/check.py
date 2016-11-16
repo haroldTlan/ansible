@@ -32,12 +32,17 @@ def checkmodule(ip="192.168.2.149", checktype="mysql"):
 
 
     elif checktype == "gateway":
-        result =  commands.getoutput("python /root/check/gatewaycheck.py --ip=%s"%ip)
-        if result == "success":
-            results = "?True?%s"%result
+        if checkport(9000, ip=args.ip):
+            results = "?True?success"
         else:
-            results = "?False?%s"%result
+            results = "?False?port not open"
     
+    elif checktype == "beanstalkd":
+        if checkport(11300, ip=args.ip):
+
+            results = "?True?success"
+        else:
+            results = "?False?port not open"
 
     elif checktype == "fileserver":
         if checkport(9002, ip=args.ip):
@@ -69,6 +74,8 @@ def checkmodule(ip="192.168.2.149", checktype="mysql"):
     else:
         results = "?False?No such type"
 
+    
+    return results
     
 if __name__ == '__main__':
     args = parser.parse_args()

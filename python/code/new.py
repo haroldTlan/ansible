@@ -6,10 +6,8 @@ from errors import *
 
 
 def results_select(items, settingtype):
-    import pdb
-    pdb.set_trace()
     if items.host_failed or items.host_unreachable:
-        print errors_info(items, settingtype)
+        print "?False?%s"%errors_info(items, settingtype)
     elif items.host_ok:
         print "?True?%s"%items.host_ok[-1]['result']._result['stdout']
     else:
@@ -51,6 +49,11 @@ def server_start(config):
         elif i['order'] == "master" and i['ip']:
             os.system("sed -i 's/master:.*/master: %s/g' %s"% (i['ip'], aim))
             docker_init(i['ip'])
+            
+        elif i['order'] == "beanstalkd" and i['ip']:
+            os.system("sed -i 's/beanstalkd:.*/beanstalkd: %s/g' %s"% (i['ip'], aim))
+            items = run_playbook("yml/beanstalkd.yml")
+            results_select(items, i['order'])
 
         elif i['order'] == "worker" and i['ip']:
             os.system("sed -i 's/master:.*/master: %s/g' %s"% (i['ip'], aim))
@@ -66,7 +69,12 @@ def server_start(config):
             print "?True?success"
 
         elif i['order'] == "store" and i['ip'] :
-            os.system("sed -i 's/store:.*/store: %s/g' %s"% (i['ip'], aim))
+            ip=i['ip'].split('|')
+            if len(ip)>0:
+                os.system("sed -i 's/storeaim:.*/storeaim: %s/g' %s"% (ip[0], aim))
+                #store = ",".join(ip[1:])
+                os.system("sed -i 's/store:.*/store: %s/g' %s"% (ip[1], aim))
+            #os.system("sed -i 's/store:.*/store: %s/g' %s"% (i['ip'], aim))
             items = run_playbook("yml/store.yml")
             results_select(items, i['order'])
 
@@ -80,6 +88,15 @@ def server_start(config):
 
         elif i['order'] == "gateway" and i['ip'] :
             items = run_playbook("yml/gateway.yml")
+            results_select(items, i['order'])
+
+        elif i['order'] == "task" and i['ip'] :
+            items = run_playbook("yml/task.yml")
+            results_select(items, i['order'])
+
+        elif i['order'] == "precreate" and i['ip'] :
+            os.system("sed -i 's/push:.*/push: %s/g' %s"% (i['ip'], aim))
+            items = run_playbook("yml/push.yml")
             results_select(items, i['order'])
 
 

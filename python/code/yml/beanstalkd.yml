@@ -1,0 +1,9 @@
+---
+- hosts: "{{ beanstalkd }}"
+  remote_user: root
+  gather_facts: false
+  vars_files:
+    - vars/server.yml
+  tasks:
+    - name: running docker beanstalkd
+      command: docker run -d  --restart=always --name beanstalkd -p 11300:11300 -v /tmp:/root/data 192.168.2.217:5000/beanstalkd bash -c "/etc/init.d/supervisor start && /usr/local/bin/weedWorker -metadata "{{ beanstalkd }}":9333 -mongodbAddress "{{ beanstalkd }}":37017"

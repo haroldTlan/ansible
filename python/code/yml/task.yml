@@ -1,0 +1,9 @@
+---
+- hosts: "{{ master }}"
+  remote_user: root
+  gather_facts: false
+  vars_files:
+    - vars/server.yml  
+  tasks:
+    - name: task_service
+      command: docker run --name task --restart=always -d -v /tmp:/root/data 192.168.2.217:5000/task python /taskupload.py --master="{{ master }}":9333 --mongodb="{{ mongo }}":37017 --sleep=2 --beanstalkd="{{ beanstalkd }}"
