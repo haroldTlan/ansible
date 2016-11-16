@@ -1,0 +1,5 @@
+
+cp export.conf.clean /etc/rozofs/export.conf
+
+/etc/init.d/rozofs-exportd reload
+

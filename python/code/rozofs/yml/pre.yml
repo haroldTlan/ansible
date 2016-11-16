@@ -1,0 +1,11 @@
+---
+- hosts: "{{ client }}"
+  remote_user: root
+  gather_facts: false
+  vars_files:
+    - vars/rozofs.yml  
+  tasks:
+    - name: clientInit
+      shell: rozofsmount -H {{ client }} -E /srv/exports /mnt/rozofs/
+    - name: echo rclocal
+      shell: echo "rozofsmount -H {{ client }} -E /srv/exports /mnt/rozofs/" >> /etc/rc.local

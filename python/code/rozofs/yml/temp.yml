@@ -1,0 +1,16 @@
+---
+- hosts: "{{ s }}"
+  remote_user: root
+  gather_facts: false
+  vars_files:
+    - vars/rozofs.yml  
+  tasks:
+      #    - name: clientInit
+      #shell: echo  {{ inventory_hostname }}  >> temp.sh
+      #    - name: clientInit
+      #      shell: echo  {{ single.index(inventory_hostname) }}  >> temp.sh
+      - name: clientInit
+        shell: echo  {{ temp[single.index(inventory_hostname)] }}  >> temp.sh
+        with_items: 
+          - "{{ single }}"
+     

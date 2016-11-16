@@ -1,0 +1,16 @@
+---
+- hosts: "{{ storage }}"
+  remote_user: root
+  gather_facts: false
+  vars_files:
+    - vars/rozofs.yml  
+  tasks:
+      #    - name: mount fs
+      # command: python /home/monitor/rozofs/load.py
+      # - name: sleep
+      # command: sleep 5
+    - name: prestorage
+      command: python /home/monitor/rozofs/prestorage.py --sequence={{ slot[storages.index(inventory_hostname)] }}
+    - name: store build
+      command: python /home/monitor/store.py build
+

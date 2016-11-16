@@ -1,8 +1,0 @@
----
-- hosts: "{{ export }}"
-  remote_user: root
-  vars_files:
-    - ../vars/rozofs.yml  
-  tasks:
-    - name: exportInit
-      shell: rozo volume expand {{ expand }} --vid {{ vid }} --layout {{ layout }}  --exportd {{ export }}

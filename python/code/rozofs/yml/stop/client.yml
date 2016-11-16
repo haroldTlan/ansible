@@ -1,0 +1,11 @@
+---
+- hosts: "{{ serviceStop }}"
+  remote_user: root
+  gather_facts: false
+  vars_files:
+    - ../vars/rozofs.yml  
+  tasks:
+    - name: stop client
+      shell: umount rozofs
+    - name: remove rclocal
+      shell: sed -i '/rozofsmount/d' /etc/rc.step3

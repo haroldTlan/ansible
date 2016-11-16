@@ -1,0 +1,10 @@
+---
+- hosts: "{{ storage }}"
+  remote_user: root
+  gather_facts: false
+  vars_files:
+    - vars/rozofs.yml  
+  tasks:
+    - name: mount fs
+      command: python /home/monitor/rozofs/load.py
+

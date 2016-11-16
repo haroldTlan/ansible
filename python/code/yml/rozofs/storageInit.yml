@@ -1,8 +1,0 @@
----
-- hosts: "{{ store }}"
-  remote_user: root
-  vars_files:
-    - ../vars/rozofs.yml  
-  tasks:
-    - name: storeInit
-      shell: bash /home/monitor/rozofs/storageInit

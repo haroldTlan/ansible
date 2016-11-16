@@ -1,0 +1,11 @@
+---
+- hosts: "{{ serviceStop }}"
+  remote_user: root
+  gather_facts: false
+  vars_files:
+    - ../vars/rozofs.yml  
+  tasks:
+    - name: exportInit
+      shell: bash /home/monitor/rozofs/exportInit
+#    - name: killall
+#      shell: killall exportd

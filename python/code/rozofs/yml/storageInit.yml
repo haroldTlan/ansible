@@ -1,0 +1,9 @@
+---
+- hosts: "{{ storage }}"
+  remote_user: root
+  gather_facts: false
+  vars_files:
+    - vars/rozofs.yml  
+  tasks:
+    - name: storeInit
+      shell: bash /home/monitor/rozofs/storageInit

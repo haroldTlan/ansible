@@ -1,8 +1,0 @@
----
-- hosts: "{{ client }}"
-  remote_user: root
-  vars_files:
-    - ../vars/rozofs.yml  
-  tasks:
-    - name: clientInit
-      shell: rozofsmount -H {{ client }} -E /srv/exports /mnt/rozofs/

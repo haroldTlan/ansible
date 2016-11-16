@@ -1,0 +1,15 @@
+---
+- hosts: "{{exports}}, {{storages}}"
+  remote_user: root
+  gather_facts: false
+ # ignore_errors: True
+  vars_files:
+    - ../vars/info.yml
+  tasks:
+    - name: masterInfo
+      shell: curl http://localhost:8081/api/statistics
+      when: inventory_hostname in "{{exports}}"
+    - name: storeInfo
+      shell: curl http://localhost:8081/api/statistics
+      when: inventory_hostname in "{{storages}}"
+

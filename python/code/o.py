@@ -149,12 +149,11 @@ def run_playbook(books):
         return callback
 
     except Exception as e:
-        # ('run_playbook:%s'%e)
         print "error"
         print e
 
 if __name__ == '__main__':
-    run_playbook("yml/info/store.yml")
+    run_playbook("yml/info/c.yml")
     #order= "docker swarm join     --token SWMTKN-1-2iz0i3evtuous8rksj5mc9uuhs0ytwdcnkke6407dmpl69187a-8svnkz3dqykisk14ust2n0ku4     192.168.2.148:2377"
     #run_adhoc("192.168.2.149", "ifconfig")
     #docker_init()

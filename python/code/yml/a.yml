@@ -1,9 +1,0 @@
----
-- hosts: "{{ store }}"
-  remote_user: root
-  gather_facts: false
-  vars_files:
-    - vars/server.yml  
-  tasks:
-    - name: conf
-      command: echo ""{{ inventory_hostname }}"" >> ~/temp.sh

@@ -1,11 +1,4 @@
 layout = 0;
-volumes = ( 
-	{
-		vid = 1;
-		cids = ( 
-					
-			 );
-	} );
 exports = ( 
 	{
 		eid = 1;

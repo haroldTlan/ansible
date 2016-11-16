@@ -1,0 +1,5 @@
+python /home/monitor/store.py del
+cp /home/monitor/rozofs/storage.conf.clean /etc/rozofs/storage.conf
+
+/etc/init.d/rozofs-storaged reload
+
