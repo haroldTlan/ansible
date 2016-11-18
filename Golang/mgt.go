@@ -32,30 +32,6 @@ type Session struct {
 	Id int32 `json:"login_id"`
 }
 
-type View struct {
-	Disk       []Disk
-	NumOfDisks int64
-	Raid       []Raid
-	NumOfRaids int64
-
-	Vol       []Volume
-	NumOfVols int64
-
-	Fs      []Filesystems
-	NumOfFs int64
-
-	Initiator       []Initiator
-	NumOfInitiators int64
-}
-
-type StoreView struct {
-	RestDisks   []ResDisks       `json:"disks"`
-	RestRaids   []ResRaids       `json:"raids"`
-	RestVolumes []ResVols        `json:"volumes"`
-	RestFs      []ResFilesystems `json:"filesystems"`
-	RestInits   []ResInitiators  `json:"initiators"`
-}
-
 func FromBase10(base10 string) *big.Int {
 	i, ok := new(big.Int).SetString(base10, 10)
 	if !ok {
@@ -101,20 +77,15 @@ func Serve() {
 				//if err == nil {
 				if true {
 					router.HandleFunc("/api/sessions", web.JsonResponse(createSession)).Methods("POST")
-					router.HandleFunc("/api/machines/{uuid}/disks", web.JsonResponse(getDisksOfMachine)).Methods("GET")
-					router.HandleFunc("/api/machines/{uuid}/raids", web.JsonResponse(getRaidsOfMachine)).Methods("GET")
-					router.HandleFunc("/api/machines/{uuid}/volumes", web.JsonResponse(getVolumesOfMachine)).Methods("GET")
-					router.HandleFunc("/api/machines/{uuid}/filesystems", web.JsonResponse(getFilesystemsOfMachine)).Methods("GET")
-					router.HandleFunc("/api/machines/{uuid}/initiators", web.JsonResponse(getInitiatorsOfMachine)).Methods("GET")
+					router.HandleFunc("/api/ifaces", web.JsonResponse(getIfaces)).Methods("GET")
+					router.HandleFunc("/api/systeminfo", web.JsonResponse(getSysteminfo)).Methods("GET")
+
 					router.HandleFunc("/api/machines", web.JsonResponse(addMachines)).Methods("POST")
 					router.HandleFunc("/api/machines", web.JsonResponse(getMachines)).Methods("GET")
 					router.HandleFunc("/api/machines/{uuid}", web.JsonResponse(delMachines)).Methods("DELETE")
-					router.HandleFunc("/api/machine", web.JsonResponse(flushMachines)).Methods("POST")
 					router.HandleFunc("/api/machine/{uuid}", web.JsonResponse(restMachines)).Methods("GET")
 
-					router.HandleFunc("/api/storeviews", web.JsonResponse(getStoreview)).Methods("GET")
-					router.HandleFunc("/api/ifaces", web.JsonResponse(getIfaces)).Methods("GET")
-					router.HandleFunc("/api/systeminfo", web.JsonResponse(getSysteminfo)).Methods("GET")
+					router.HandleFunc("/api/storeviews", web.JsonResponse(getAllviews)).Methods("GET")
 					router.HandleFunc("/api/cloudset", web.JsonResponse(cloudSetting)).Methods("POST")
 					router.HandleFunc("/api/cloudset", web.JsonResponse(getcloudSetting)).Methods("GET")
 					router.HandleFunc("/api/cloudcheck", web.JsonResponse(cloudCheck)).Methods("POST")
@@ -126,10 +97,18 @@ func Serve() {
 					router.HandleFunc("/api/devices", web.JsonResponse(addDevices)).Methods("POST")
 					router.HandleFunc("/api/devices", web.JsonResponse(getDevices)).Methods("GET")
 					router.HandleFunc("/api/devices/{uuid}", web.JsonResponse(delDevices)).Methods("DELETE")
-					router.HandleFunc("/api/rozoset", web.JsonResponse(setRozofs)).Methods("POST")
-					router.HandleFunc("/api/rozoset", web.JsonResponse(getRozofs)).Methods("GET")
+					router.HandleFunc("/api/export", web.JsonResponse(setExports)).Methods("POST")
+					router.HandleFunc("/api/storage", web.JsonResponse(setStorages)).Methods("POST")
+					router.HandleFunc("/api/client", web.JsonResponse(setClients)).Methods("POST")
+					router.HandleFunc("/api/client/{uuid}", web.JsonResponse(delClients)).Methods("DELETE")
+					router.HandleFunc("/api/rozostop", web.JsonResponse(rozoServiceStop)).Methods("POST")
+					router.HandleFunc("/api/rozocheck", web.JsonResponse(rozoCheck)).Methods("POST")
 
-					router.HandleFunc("/api/temp/{uuid}", web.JsonResponse(temp)).Methods("GET")
+					router.HandleFunc("/api/machines/{uuid}/disks", web.JsonResponse(getDisksOfMachine)).Methods("GET")
+					router.HandleFunc("/api/machines/{uuid}/raids", web.JsonResponse(getRaidsOfMachine)).Methods("GET")
+					router.HandleFunc("/api/machines/{uuid}/volumes", web.JsonResponse(getVolumesOfMachine)).Methods("GET")
+					router.HandleFunc("/api/machines/{uuid}/filesystems", web.JsonResponse(getFilesystemsOfMachine)).Methods("GET")
+					router.HandleFunc("/api/machines/{uuid}/initiators", web.JsonResponse(getInitiatorsOfMachine)).Methods("GET")
 
 					fmt.Println("step2\n")
 				}
@@ -143,6 +122,8 @@ func Serve() {
 	sio := NewSocketIOServer()
 	sio.Handle("/", router)
 	http.ListenAndServe(":8008", sio)
+
+	Refreshing()
 }
 
 func addDevices(w http.ResponseWriter, r *http.Request) (interface{}, error) {
@@ -151,7 +132,7 @@ func addDevices(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	devType := r.FormValue("devtype")
 	size := r.FormValue("size")
 
-	err := InsertDevice(ip, version, devType, size)
+	err := InsertDevice(ip, version, size, devType)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +151,6 @@ func getDevices(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 func delDevices(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	vars := mux.Vars(r)
 	uuid := vars["uuid"]
-	fmt.Println(uuid)
 	if err := DelDevice(uuid); err != nil {
 		return nil, err
 	}
@@ -178,87 +158,166 @@ func delDevices(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	return nil, nil
 }
 
-func setRozofs(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	settingType := r.FormValue("settingtype")
+func setExports(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	ip := r.FormValue("ip")
+	expands := r.FormValue("expand")
 
-	var out []byte
-	var err error
-	if settingType == "export" {
-		expand := r.FormValue("expand")
-		out, err = exec.Command("/bin/sh", "-c", fmt.Sprintf("python /root/code/rozofs.py --settingtype=%s --ip=%s --expand=%s", settingType, ip, expand)).Output()
-		if err != nil {
-			return string(out), err
-		}
-	} else {
-		out, err = exec.Command("/bin/sh", "-c", fmt.Sprintf("python /root/code/rozofs.py --settingtype=%s --ip=%s", settingType, ip)).Output()
-		if err != nil {
-			return string(out), err
-		}
+	var one Device
+	if _, err := o.QueryTable("device").Filter("ip", ip).All(&one); err != nil {
+		return nil, err
 	}
 
-	results := stupidCmd(string(out))
-
-	err = InsertRozofsSetting(settingType, ip, results.Status == "True")
-
+	out, err := exec.Command("python", "/root/code/rozofs/rozofs.py", "--settingtype=export", fmt.Sprintf("--ip=%s", ip), fmt.Sprintf("--expand=%s", expands), fmt.Sprintf("--status=%s", one.Status)).Output()
 	if err != nil {
 		return string(out), err
 	}
 
-	addLogtoChan(ip, settingType, "set", err, results.Status == "True")
+	results := stupidCmd(string(out))
+	if results.Status == "True" {
+		if err := InsertExports(ip, true); err != nil {
+			return nil, err
+		}
+		expand := strings.Split(expands, ",")
+		for i := 0; i < len(expand); i++ {
+			InsertStorages(ip, true, expand[i])
+		}
+	} //TODO
+
+	addLogtoChan(ip, "export", "set", err, results.Status == "True")
+
+	return results, err
+}
+
+func setStorages(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	ip := r.FormValue("ip")
+
+	var one Device
+	if _, err := o.QueryTable("device").Filter("devtype", "export").Filter("ip", ip).All(&one); err != nil {
+		return nil, err
+	}
+
+	out, err := exec.Command("python", "/root/code/rozofs/rozofs.py", "--settingtype=storage", fmt.Sprintf("--ip=%s", ip)).Output()
+	if err != nil {
+		return string(out), err
+	}
+
+	results := stupidCmd(string(out))
+
+	if results.Status == "True" {
+
+		/*err = InsertRozofsSetting("storage", ip, results.Status == "True", export, cid, sid, slot)
+
+		if err != nil {
+			return string(out), err
+		}*/
+	}
+
+	addLogtoChan(ip, "storage", "set", err, results.Status == "True")
 	return results, err
 
 }
 
-func getRozofs(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	settings, err := SelectRozofsSetting()
-	if err != nil {
-		return settings, err
-	}
-	return settings, nil
-}
-
-func clearRozofs(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	var result CmdRes
-	stoptype := r.FormValue("stoptype")
-	ip := r.FormValue("ip")
-
-	err := ClearRozofsSetting(stoptype, ip)
-	if err != nil {
-		result.Status = "False"
-		return result, err
-	}
-	result.Status = "True"
-	return result, err
-}
-
-func temp(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+func delStorages(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	vars := mux.Vars(r)
 	uuid := vars["uuid"]
 
-	//uuid := "73b9f5ca-4d73-ded8-0cb8-7c0478375aae1921682103"
-	/*
-		if err := RefreshReNetInits(uuid); err != nil {
-			return nil, err
+	err := StopRozofsSevices(uuid)
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+}
+
+func setClients(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	ip := r.FormValue("ip")
+
+	out, err := exec.Command("python", "/root/code/rozofs/rozofs.py", "--settingtype=client", fmt.Sprintf("--ip=%s", ip), "--slot=None").Output()
+	if err != nil {
+		return string(out), err
+	}
+
+	results := stupidCmd(string(out))
+
+	if results.Status == "True" {
+		err = InsertRozofsSetting("client", ip, results.Status == "True", ip, 0, 0, "0")
+		if err != nil {
+			return string(out), err
 		}
 
-		redisks, err := SelectNetInitsOfMachine(uuid)
+	} else {
+		err = InsertRozofsSetting("client", ip, results.Status == "False", ip, 0, 0, "0")
 		if err != nil {
-			return redisks, err
+			return string(out), err
 		}
-		return redisks, nil*/
-	a, err := resRaids(uuid)
-	return a, err
+
+	}
+
+	//addLogtoChan(ip, "export", "set", err, results.Status == "True")
+	return nil, nil
+}
+
+func delClients(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	uuid := vars["uuid"]
+
+	return uuid, nil
+}
+
+func rozoServiceStop(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	stopType := r.FormValue("stoptype")
+	ip := r.FormValue("ip")
+
+	out, err := exec.Command("python", "/root/code/rozofs/stop.py", fmt.Sprintf("--stoptype=%s", stopType), fmt.Sprintf("--ip=%s", ip)).Output()
+	if err != nil {
+		return string(out), err
+	}
+
+	results := stupidCmd(string(out))
+	devNum := strings.Split(ip, ",")
+
+	if results.Status == "True" {
+		if len(devNum) > 1 {
+			for _, dev := range devNum {
+				err = StopRozofsSetting(stopType, dev)
+			}
+		} else {
+			err = StopRozofsSetting(stopType, ip)
+		}
+		if err != nil {
+			return string(out), err
+		}
+
+	}
+	addLogtoChan(ip, stopType, "unset", err, results.Status == "True")
+
+	return results, err
+
+}
+
+func rozoCheck(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	checkType := r.FormValue("checktype")
+	ip := r.FormValue("ip")
+
+	result, err := refreshRozoCheck(checkType, ip)
+
+	//if results.Status == "True" {
+	//err = InsertRozofsSetting(checkType, ip, results.Status == "True")
+	//}
+
+	return result, err
 }
 
 func addMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	ip := r.FormValue("ip")
 	slotnr, _ := strconv.Atoi(r.FormValue("slotnr"))
+	devType := r.FormValue("devtype")
 
-	err := InsertMachine(ip, slotnr)
+	err := InsertMachine(ip, slotnr, devType)
 	if err != nil {
 		return nil, err
 	}
+	RefreshStatAdd(ip)
 
 	return nil, err
 }
@@ -281,14 +340,15 @@ func delMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	return nil, nil
 }
 
-func flushMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	uuid := r.FormValue("uuid")
-	fmt.Println("1")
-	if err := RefreshViews(uuid); err != nil {
+func restMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	vars := mux.Vars(r)
+	uuid := vars["uuid"]
+
+	if err := RefreshStores(uuid); err != nil {
 		fmt.Println(err)
 		return nil, err
 	}
-	fmt.Println("2")
+
 	rest, err := restApi(uuid)
 	if err != nil {
 		return rest, err
@@ -297,86 +357,11 @@ func flushMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) 
 	return rest, nil
 }
 
-func restMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	vars := mux.Vars(r)
-	uuid := vars["uuid"]
-
-	var store StoreView
-
-	disks, err := resDisks(uuid)
+func getAllviews(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	views, err := RefreshAllViews()
 	if err != nil {
 		return nil, err
 	}
-
-	raids, err := resRaids(uuid)
-	if err != nil {
-		return nil, err
-	}
-
-	vols, err := resVols(uuid)
-	if err != nil {
-		return nil, err
-	}
-
-	fs, err := resFs(uuid)
-	if err != nil {
-		return nil, err
-	}
-
-	inits, err := resInits(uuid)
-	if err != nil {
-		return nil, err
-	}
-
-	store.RestDisks = disks
-	store.RestRaids = raids
-	store.RestVolumes = vols
-	store.RestFs = fs
-	store.RestInits = inits
-
-	return store, nil
-}
-
-/*func getDisksOfMachines(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-
-	vars := mux.Vars(r)
-	uuid := vars["uuid"]
-
-	machine, err := SelectMachine(uuid)
-	if err != nil {
-		return nil, nil
-	}
-
-	RefreshDisks(machine.Ip, uuid)
-	//RefreshDisks("192.168.2.132", uuid)
-	disks, _ := SelectDisksOfMachine(uuid)
-	return disks, nil
-}*/
-
-func getStoreview(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-
-	disks, disks_num, err := SelectDisks()
-	if err != nil {
-		return nil, err
-	}
-	raids, raids_num, err := SelectRaids()
-	if err != nil {
-		return nil, err
-	}
-	vols, vols_num, err := SelectVolumes()
-	if err != nil {
-		return nil, err
-	}
-	fs, fs_num, err := SelectFilesystems()
-	if err != nil {
-		return nil, err
-	}
-	inits, inits_num, err := SelectInitiators()
-	if err != nil {
-		return nil, err
-	}
-
-	views := View{Disk: disks, NumOfDisks: disks_num, Raid: raids, NumOfRaids: raids_num, Vol: vols, NumOfVols: vols_num, Fs: fs, NumOfFs: fs_num, Initiator: inits, NumOfInitiators: inits_num}
 
 	return views, nil
 }
@@ -385,7 +370,6 @@ func getDisksOfMachine(w http.ResponseWriter, r *http.Request) (interface{}, err
 	vars := mux.Vars(r)
 	uuid := vars["uuid"]
 
-	//uuid := "73b9f5ca-4d73-ded8-0cb8-7c0478375aae1921682103"
 	if err := RefreshReDisks(uuid); err != nil {
 		return nil, err
 	}
@@ -435,7 +419,7 @@ func getFilesystemsOfMachine(w http.ResponseWriter, r *http.Request) (interface{
 		return nil, err
 	}
 
-	refs, err := SelectFilesystemsOfMachine(uuid)
+	refs, err := resFs(uuid)
 	if err != nil {
 		return refs, err
 	}
@@ -452,7 +436,7 @@ func getInitiatorsOfMachine(w http.ResponseWriter, r *http.Request) (interface{}
 	RefreshReRaidVolumes(uuid)
 	RefreshReInitVolumes(uuid)
 	RefreshReNetInits(uuid)
-	refs, err := SelectInitiatorsOfMachine(uuid)
+	refs, err := resInits(uuid)
 	if err != nil {
 		return refs, err
 	}
@@ -571,7 +555,7 @@ func cloudTemp(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 }
 
 func getJournals(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	journals, err := Selectjournals()
+	journals, err := SelectJournal()
 	if err != nil {
 		return journals, err
 	}
@@ -579,9 +563,8 @@ func getJournals(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 }
 
 func delJournals(w http.ResponseWriter, r *http.Request) (interface{}, error) {
-
 	var result CmdRes
-	err := ClearJournals()
+	err := ClearJournal()
 	if err != nil {
 		result.Status = "False"
 		return result, err
@@ -624,9 +607,9 @@ func addLogtoChan(ip string, sertype string, logtype string, err error, result b
 	config := getLogConfig(logtype, result)
 
 	if err == nil {
-		_ = InsertJournals(config.Level, fmt.Sprintf("Server %s %s %s ", ip, logtype, sertype, config.Result), fmt.Sprintf("服务器 %s %s %s %s", ip, config.ChLogType, sertype, config.ChResult))
+		_ = InsertJournal(config.Level, fmt.Sprintf("Server %s %s %s ", ip, logtype, sertype, config.Result), fmt.Sprintf("服务器 %s %s %s %s", ip, config.ChLogType, sertype, config.ChResult))
 
 	} else {
-		_ = InsertJournals(config.Level, fmt.Sprintf("%s %s", logtype, err), fmt.Sprintf("%s %s 操作错误", config.ChLogType, err))
+		_ = InsertJournal(config.Level, fmt.Sprintf("%s %s", logtype, err), fmt.Sprintf("%s %s 操作错误", config.ChLogType, err))
 	}
 }

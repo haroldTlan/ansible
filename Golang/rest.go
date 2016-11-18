@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 )
 
 type ResInitiators struct {
@@ -62,26 +63,186 @@ type ResFilesystems struct { //the table'name is xfs
 	MachineId string `json:"machineId"`
 }
 
-func resInits(uuid string) ([]ResInitiators, error) {
-	inits := make([]ResInitiators, 0)
+type ResJournals struct {
+	Message   string    `json:"message"`
+	Created   time.Time `orm:"index" json:"created"`
+	Unix      int64     `json:"unix"`
+	Level     string    `json:"level"`
+	Ip        string    `json:"ip"`
+	MachineId string    `json:"machineId"`
+	Devtype   string    `json:"devtype"`
+}
 
-	var ip Machine
-	if _, err := o.QueryTable("machine").Filter("uuid", uuid).All(&ip); err != nil {
+func resDisks(uuid string) ([]ResDisks, error) {
+	disks := make([]ResDisks, 0)
+
+	var one Machine
+	if _, err := o.QueryTable("machine").Filter("uuid", uuid).All(&one); err != nil {
 		return nil, err
 	}
 
-	Nets, err := SelectNetInitsOfMachine(uuid)
+	ones := make([]Disk, 0)
+	_, err := o.QueryTable("disk").Filter("machineId__exact", uuid).Exclude("location__exact", "").All(&ones)
 	if err != nil {
+		return disks, err
+	}
+
+	for _, val := range ones {
+		var disk ResDisks
+		disk.Uuid = val.Uuid
+		disk.Health = val.Health
+		disk.Role = val.Role
+		disk.Location = val.Location
+		disk.Raid = val.Raid
+		disk.CapSector = val.CapSector
+		disk.Vendor = val.Vendor
+		disk.Model = val.Model
+		disk.Sn = val.Sn
+		disk.Ip = one.Ip
+		disks = append(disks, disk)
+	}
+
+	return disks, nil
+}
+
+func resRaids(uuid string) ([]ResRaids, error) {
+	raids := make([]ResRaids, 0)
+
+	var one Machine
+	if _, err := o.QueryTable("machine").Filter("uuid", uuid).All(&one); err != nil {
+		return nil, err
+	}
+
+	ones := make([]Raid, 0)
+	_, err := o.QueryTable("raid").Filter("machineId__exact", uuid).Filter("deleted__exact", 0).All(&ones)
+	if err != nil {
+		return raids, err
+	}
+
+	for _, val := range ones {
+		var raid ResRaids
+		raid.Uuid = val.Uuid
+		raid.Health = val.Health
+		raid.Level = val.Level
+		raid.Name = val.Name
+		raid.Cap = int64(val.Cap) * 1024 * 1024
+		raid.Used = int64(val.Used) * 1024 * 1024
+		raid.CapMb = float64(val.Cap * 1024)
+		raid.UsedMb = float64(val.Used) * 1024
+		raid.MachineId = val.MachineId
+		raid.Ip = one.Ip
+
+		raids = append(raids, raid)
+	}
+
+	return raids, nil
+}
+
+func resVols(uuid string) ([]ResVols, error) {
+	vols := make([]ResVols, 0)
+
+	var one Machine
+	if _, err := o.QueryTable("machine").Filter("uuid", uuid).All(&one); err != nil {
+		return nil, err
+	}
+
+	ones := make([]Volume, 0)
+	_, err := o.QueryTable("volume").Filter("machineId__exact", uuid).Filter("deleted__exact", 0).All(&ones)
+	if err != nil {
+		return vols, err
+	}
+
+	raidVols := make([]RaidVolume, 0)
+	if _, err := o.QueryTable("raid_volume").Filter("machineId__exact", uuid).All(&raidVols); err != nil {
+		return vols, err
+	}
+
+	for _, val := range ones {
+		var vol ResVols
+		vol.Uuid = val.Uuid
+		vol.Health = val.Health
+		vol.Name = val.Name
+		vol.Cap = int64(val.Cap) * 1024 * 1024
+		vol.CapMb = float64(val.Cap) * 1024
+		vol.Type = val.Type
+		vol.Deleted = val.Deleted
+		vol.Ip = one.Ip
+		vol.MachineId = val.MachineId
+
+		for _, raidVol := range raidVols {
+			if raidVol.RaidVolumes.Volume == val.Uuid {
+				var raid Raid
+				if _, err := o.QueryTable("raid").Filter("uuid", raidVol.RaidVolumes.Raid).All(&raid); err != nil {
+					return nil, err
+				}
+				vol.Owner = raid.Raids.Name
+
+			}
+		}
+
+		vols = append(vols, vol)
+	}
+
+	return vols, nil
+}
+
+func resFs(uuid string) ([]ResFilesystems, error) {
+	fs := make([]ResFilesystems, 0)
+
+	var one Machine
+	if _, err := o.QueryTable("machine").Filter("uuid", uuid).All(&one); err != nil {
+		return nil, err
+	}
+
+	ones := make([]Filesystems, 0)
+	_, err := o.QueryTable("filesystems").Filter("machineId__exact", uuid).All(&ones)
+	if err != nil {
+		return fs, err
+	}
+
+	for _, val := range ones {
+		var f ResFilesystems
+
+		f.Uuid = val.Uuid
+		f.Name = val.Name
+		f.Chunk = val.Chunk
+		f.Type = val.Type
+
+		var vols Volume
+		if _, err := o.QueryTable("volume").Filter("uuid", val.Volume).All(&vols); err != nil {
+			return nil, err
+		}
+		f.Volume = vols.Volumes.Name
+
+		f.Ip = one.Ip
+		f.MachineId = uuid
+
+		fs = append(fs, f)
+	}
+
+	return fs, nil
+}
+
+func resInits(uuid string) ([]ResInitiators, error) {
+	inits := make([]ResInitiators, 0)
+
+	var one Machine
+	if _, err := o.QueryTable("machine").Filter("uuid", uuid).All(&one); err != nil {
+		return nil, err
+	}
+
+	Nets := make([]NetworkInitiator, 0)
+	if _, err := o.QueryTable("network_initiator").Filter("machineId__exact", uuid).All(&Nets); err != nil {
 		return inits, err
 	}
 
-	Inits, err := SelectInitiatorsOfMachine(uuid)
-	if err != nil {
+	Inits := make([]Initiator, 0)
+	if _, err := o.QueryTable("initiator").Filter("machineId__exact", uuid).All(&Inits); err != nil {
 		return inits, err
 	}
 
-	InitVols, err := SelectInitVolumesOfMachine(uuid)
-	if err != nil {
+	InitVols := make([]InitiatorVolume, 0)
+	if _, err := o.QueryTable("initiator_volume").Filter("machineId__exact", uuid).All(&InitVols); err != nil {
 		return inits, err
 	}
 
@@ -118,159 +279,37 @@ func resInits(uuid string) ([]ResInitiators, error) {
 		slice.Id = val.Wwn
 		slice.MachineId = uuid
 
-		slice.Ip = ip.Ip
+		slice.Ip = one.Ip
 		inits = append(inits, slice)
 	}
 	fmt.Println(inits)
 	return inits, nil
 }
 
-func resDisks(uuid string) ([]ResDisks, error) {
-	disks := make([]ResDisks, 0)
+func resJournals(uuid string) ([]ResJournals, error) {
+	jours := make([]ResJournals, 0)
 
-	var ip Machine
-	if _, err := o.QueryTable("machine").Filter("uuid", uuid).All(&ip); err != nil {
+	var one Machine
+	if _, err := o.QueryTable("machine").Filter("uuid", uuid).All(&one); err != nil {
 		return nil, err
 	}
 
-	ones := make([]Disk, 0)
-	_, err := o.QueryTable("disk").Filter("machineId__exact", uuid).Exclude("location__exact", "").All(&ones)
+	ones := make([]Journal, 0)
+	_, err := o.QueryTable("Journal").Filter("machineId__exact", uuid).All(&ones)
 	if err != nil {
-		return disks, err
+		return jours, err
 	}
 
 	for _, val := range ones {
-		var disk ResDisks
-		disk.Uuid = val.Uuid
-		disk.Health = val.Health
-		disk.Role = val.Role
-		disk.Location = val.Location
-		disk.Raid = val.Raid
-		disk.CapSector = val.CapSector
-		disk.Vendor = val.Vendor
-		disk.Model = val.Model
-		disk.Sn = val.Sn
-		disk.Ip = ip.Ip
-		disks = append(disks, disk)
+		var jour ResJournals
+		jour.Message = val.Message
+		jour.Created = val.Created_at
+		jour.Unix = val.Created_at.Unix()
+		jour.Level = val.Level
+		jour.MachineId = uuid
+		jour.Ip = one.Ip
+		jours = append(jours, jour)
 	}
 
-	return disks, nil
-}
-
-func resRaids(uuid string) ([]ResRaids, error) {
-	raids := make([]ResRaids, 0)
-
-	var ip Machine
-	if _, err := o.QueryTable("machine").Filter("uuid", uuid).All(&ip); err != nil {
-		return nil, err
-	}
-
-	ones := make([]Raid, 0)
-	_, err := o.QueryTable("raid").Filter("machineId__exact", uuid).Filter("deleted__exact", 0).All(&ones)
-	if err != nil {
-		return raids, err
-	}
-
-	for _, val := range ones {
-		var raid ResRaids
-		raid.Uuid = val.Uuid
-		raid.Health = val.Health
-		raid.Level = val.Level
-		raid.Name = val.Name
-		raid.Cap = int64(val.Cap) * 1024 * 1024
-		raid.Used = int64(val.Used) * 1024 * 1024
-		raid.CapMb = float64(val.Cap * 1024)
-		raid.UsedMb = float64(val.Used) * 1024
-		raid.MachineId = val.MachineId
-		raid.Ip = ip.Ip
-
-		raids = append(raids, raid)
-	}
-
-	return raids, nil
-}
-
-func resVols(uuid string) ([]ResVols, error) {
-	vols := make([]ResVols, 0)
-
-	var ip Machine
-	if _, err := o.QueryTable("machine").Filter("uuid", uuid).All(&ip); err != nil {
-		return nil, err
-	}
-
-	ones := make([]Volume, 0)
-	_, err := o.QueryTable("volume").Filter("machineId__exact", uuid).Filter("deleted__exact", 0).All(&ones)
-	if err != nil {
-		return vols, err
-	}
-
-	raidVols, err := SelectRaidVolumesOfMachine(uuid)
-	if err != nil {
-		return vols, err
-	}
-
-	for _, val := range ones {
-		var vol ResVols
-		vol.Uuid = val.Uuid
-		vol.Health = val.Health
-		vol.Name = val.Name
-		vol.Cap = int64(val.Cap) * 1024 * 1024
-		vol.CapMb = float64(val.Cap) * 1024
-		vol.Type = val.Type
-		vol.Deleted = val.Deleted
-		vol.Ip = ip.Ip
-		vol.MachineId = val.MachineId
-
-		for _, raidVol := range raidVols {
-			if raidVol.RaidVolumes.Volume == val.Uuid {
-				var raid Raid
-				if _, err := o.QueryTable("raid").Filter("uuid", raidVol.RaidVolumes.Raid).All(&raid); err != nil {
-					return nil, err
-				}
-				vol.Owner = raid.Raids.Name
-
-			}
-		}
-
-		vols = append(vols, vol)
-	}
-
-	return vols, nil
-}
-
-func resFs(uuid string) ([]ResFilesystems, error) {
-	fs := make([]ResFilesystems, 0)
-
-	var ip Machine
-	if _, err := o.QueryTable("machine").Filter("uuid", uuid).All(&ip); err != nil {
-		return nil, err
-	}
-
-	ones := make([]Filesystems, 0)
-	_, err := o.QueryTable("filesystems").Filter("machineId__exact", uuid).All(&ones)
-	if err != nil {
-		return fs, err
-	}
-
-	for _, val := range ones {
-		var f ResFilesystems
-
-		f.Uuid = val.Uuid
-		f.Name = val.Name
-		f.Chunk = val.Chunk
-		f.Type = val.Type
-
-		var vols Volume
-		if _, err := o.QueryTable("volume").Filter("uuid", val.Volume).All(&vols); err != nil {
-			return nil, err
-		}
-		f.Volume = vols.Volumes.Name
-
-		f.Ip = ip.Ip
-		f.MachineId = uuid
-
-		fs = append(fs, f)
-	}
-
-	return fs, nil
+	return jours, nil
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"github.com/astaxie/beego/orm"
 	_ "github.com/go-sql-driver/mysql"
@@ -9,36 +10,17 @@ import (
 	"time"
 )
 
-/*
-CREATE TABLE `disk` (
- `uid` INT(10) AUTO_INCREMENT,
- `uuid` VARCHAR(64),
- `location` VARCHAR(64),
- `machineId` VARCHAR(64),
- `health` VARCHAR(64),
- `role` VARCHAR(64),
- `cap_sector` INT(11),
- `raid` VARCHAR(64),
- `vendor` VARCHAR(64),
- `model` VARCHAR(64),
- `sn` VARCHAR(64),
- `created` DATETIME DEFAULT NULL,
- PRIMARY KEY (`uid`)
-);
-CREATE TABLE `machine` (
-	`uid` INT(10) AUTO_INCREMENT,
-	`uuid` VARCHAR(64),
-	`ip` VARCHAR(64),
-	`slotnr` INT(10),
-	`created` DATETIME DEFAULT NULL,
-	PRIMARY KEY (`uid`)
-);
-*/
+type Devices struct {
+	Exports  []Export
+	Storages []Storage
+	Clients  []Client
+}
 
 type Machine struct {
 	Uid     int       `orm:"pk"` // json:"uid"`
 	Uuid    string    // `json:"uuid"`
 	Ip      string    // `json:"ip"`
+	Devtype string    // `json:"ip"`
 	Slotnr  int       // `json:"slotnr"`
 	Created time.Time `orm:"index"` //json:"created"`
 }
@@ -149,6 +131,19 @@ type NetworkInitiator struct {
 	MachineId string `orm:"column(machineId)"` //json:"machineId"`
 }
 
+type Journals struct {
+	Id         int
+	Created_at time.Time `orm:"index" json:"created"`
+	Updated_at time.Time `orm:"index" json:"updated"`
+	Level      string    `json:"level"`
+	Message    string    `json:"message"`
+}
+
+type Journal struct {
+	Journals
+	MachineId string `orm:"column(machineId)" json:"machineId"`
+}
+
 type Setting struct {
 	Uid         int    `orm:"pk"`                  //json:"uid"`
 	Settingtype string `orm:"column(settingtype)"` //json:"settingtype"`
@@ -164,6 +159,11 @@ type Device struct {
 	Devtype string    `json:"devtype"`
 	Size    string    `json:"size"`
 	Status  bool      `json:"status"`
+	Export  string    `json:"export"`
+	Cid     int       `json:"cid"` //cid:cluster
+	Sid     int       `json:"sid"` //sid:host
+	Slot    string    `json:"slot"`
+	Expand  bool      `json:"expand"`
 	Created time.Time `orm:"index"json:"created"`
 }
 
@@ -175,7 +175,7 @@ type RozofsSetting struct {
 	Status      bool   `json:"status"`
 }
 
-type Journals struct {
+type LocalLog struct {
 	Uid             int       `orm:"pk"`    //json:"uid"`
 	Created_at      time.Time `orm:"index"` //json:"created"`
 	Updated_at      time.Time `orm:"index"` //json:"updated"`
@@ -184,12 +184,47 @@ type Journals struct {
 	Chinese_message string    //`json:"chinese_message"`
 }
 
+type Export struct {
+	Uid     int       `orm:"pk" json:"uid"`
+	Uuid    string    `json:"uuid"`
+	Ip      string    `json:"ip"`
+	Version string    `json:"version"`
+	Size    string    `json:"size"`
+	Cid     int       `json:"cid"`
+	Status  bool      `json:"status"`
+	Created time.Time `orm:"index" json:"created"`
+}
+
+type Storage struct {
+	Uid     int       `orm:"pk" json:"uid"`
+	Uuid    string    `json:"uuid"`
+	Ip      string    `json:"ip"`
+	Version string    `json:"version"`
+	Size    string    `json:"size"`
+	Export  string    `json:"export"`
+	Cid     int       `json:"cid"`
+	Sid     int       `json:"sid"`
+	Slot    string    `json:"slot"`
+	Status  bool      `json:"status"`
+	Created time.Time `orm:"index" json:"created"`
+}
+
+type Client struct {
+	Uid     int       `orm:"pk" json:"uid"`
+	Uuid    string    `json:"uuid"`
+	Ip      string    `json:"ip"`
+	Version string    `json:"version"`
+	Size    string    `json:"size"`
+	Status  bool      `json:"status"`
+	Created time.Time `orm:"index" json:"created"`
+}
+
 var o orm.Ormer
 
 func Initdb() {
 	orm.RegisterDriver("mysql", orm.DRMySQL)
 	orm.RegisterDataBase("default", "mysql", "root:passwd@/speediodb?charset=utf8", 30)
-	orm.RegisterModel(new(Machine), new(Disks), new(Disk), new(Raid), new(Raids), new(Volume), new(Volumes), new(Filesystems), new(Xfs), new(Initiator), new(Initiators), new(Setting), new(Journals), new(RaidVolumes), new(RaidVolume), new(InitiatorVolumes), new(InitiatorVolume), new(NetworkInitiators), new(NetworkInitiator), new(RozofsSetting), new(Device))
+	orm.RegisterModel(new(Machine), new(Disks), new(Disk), new(Raid), new(Raids), new(Volume), new(Volumes), new(Filesystems), new(Xfs), new(Initiator), new(Initiators), new(Setting), new(Journal), new(Journals), new(RaidVolumes), new(RaidVolume), new(InitiatorVolumes), new(InitiatorVolume), new(NetworkInitiators), new(NetworkInitiator), new(RozofsSetting), new(Device), new(LocalLog), new(Export), new(Storage), new(Client))
 
 	//orm.RunSyncdb("default", false, false)
 	orm.Debug = true
@@ -206,11 +241,24 @@ func InitRemote() error {
 	if mlen := len(machines); mlen > 0 {
 		for i := 0; i < mlen; i++ {
 			name, ip := MachineType(machines[i])
+			/*
+				err := o.Using(name)
+				fmt.Println(name)
+				if err != nil {
+					err := orm.RegisterDataBase(fmt.Sprintf("%s", name), "mysql", fmt.Sprintf("root:passwd@tcp(%s:3306)/speediodb?charset=utf8", ip), 30)
+					fmt.Println(err)
+					if err != nil {
+						DelMachine(machines[i].Uuid)
+						return err
+					}
+
+				}*/
 			err := orm.RegisterDataBase(fmt.Sprintf("%s", name), "mysql", fmt.Sprintf("root:passwd@tcp(%s:3306)/speediodb?charset=utf8", ip), 30)
 			if err != nil {
 				DelMachine(machines[i].Uuid)
-				fmt.Println(err)
+				return err
 			}
+
 		}
 
 		//InitLocal(machines)
@@ -224,12 +272,6 @@ func InitRemote() error {
 func InitSingleRemote(machine Machine) error {
 	name, ip := MachineType(machine)
 	orm.RegisterDataBase(fmt.Sprintf("%s", name), "mysql", fmt.Sprintf("root:passwd@tcp(%s:3306)/speediodb?charset=utf8", ip), 30)
-	err := o.Using(name)
-
-	if err != nil {
-		return err
-
-	}
 	return nil
 }
 
@@ -261,7 +303,7 @@ func Urandom() string {
 	return uuid
 }
 
-func InsertMachine(ip string, slotnr int) error {
+func InsertMachine(ip string, slotnr int, devtype string) error {
 	orm.Debug = true
 
 	var one Machine
@@ -271,6 +313,7 @@ func InsertMachine(ip string, slotnr int) error {
 
 	one.Uuid = uuid
 	one.Ip = ip
+	one.Devtype = devtype
 	one.Slotnr = slotnr
 	one.Created = time.Now()
 	if _, err := o.Insert(&one); err != nil {
@@ -278,11 +321,11 @@ func InsertMachine(ip string, slotnr int) error {
 	}
 
 	err := InitSingleRemote(one)
+
 	if err != nil {
 		return err
 	}
-
-	RefreshViews(uuid)
+	RefreshStores(uuid)
 
 	return nil
 }
@@ -321,6 +364,10 @@ func DelMachine(uuid string) error {
 	if _, err := o.QueryTable("raid_volume").Filter("machineId", uuid).Delete(); err != nil {
 		return err
 	}
+	if _, err := o.QueryTable("journal").Filter("machineId", uuid).Delete(); err != nil {
+		return err
+	}
+	RefreshStatRemove(uuid)
 
 	if _, err := o.QueryTable("machine").Filter("uuid", uuid).Delete(); err != nil {
 		return err
@@ -329,18 +376,9 @@ func DelMachine(uuid string) error {
 	return nil
 }
 
-func SelectDisksOfMachine(uuid string) ([]Disk, error) {
-	ones := make([]Disk, 0)
-	_, err := o.QueryTable("disk").Filter("machineId__exact", uuid).Exclude("location__exact", "").All(&ones)
-	if err != nil {
-		return ones, err
-	}
-	return ones, nil
-}
-
 func SelectDisks() ([]Disk, int64, error) {
 	ones := make([]Disk, 0)
-	num, err := o.QueryTable("disk").Exclude("location__exact", "").Exclude("location__exact", "").All(&ones)
+	num, err := o.QueryTable("disk").Exclude("location__exact", "").All(&ones)
 	if err != nil {
 		return ones, 0, err
 	}
@@ -356,7 +394,7 @@ func InsertDisksOfMachine(redisks []Disks, uuid string) error {
 
 		for i := 0; i < mlen; i++ {
 			var loc Disk
-			num, err := o.QueryTable("disk").Filter("uuid__exact", redisks[i].Uuid).All(&loc) //decide update or not
+			num, err := o.QueryTable("disk").Filter("uuid__exact", redisks[i].Uuid).Filter("machineId__exact", uuid).All(&loc) //decide update or not
 			if err != nil {
 				return err
 			}
@@ -406,15 +444,6 @@ func RefreshReDisks(uuid string) error {
 	InsertDisksOfMachine(ones, uuid)
 
 	return nil
-}
-
-func SelectVolumesOfMachine(uuid string) ([]Volume, error) {
-	ones := make([]Volume, 0)
-	_, err := o.QueryTable("volume").Filter("machineId__exact", uuid).Filter("deleted__exact", 0).All(&ones)
-	if err != nil {
-		return ones, err
-	}
-	return ones, nil
 }
 
 func SelectVolumes() ([]Volume, int64, error) {
@@ -482,15 +511,6 @@ func RefreshReVolumes(uuid string) error {
 	InsertVolumesOfMachine(ones, uuid)
 
 	return nil
-}
-
-func SelectRaidsOfMachine(uuid string) ([]Raid, error) {
-	ones := make([]Raid, 0)
-	_, err := o.QueryTable("raid").Filter("machineId__exact", uuid).Filter("deleted__exact", 0).All(&ones)
-	if err != nil {
-		return ones, err
-	}
-	return ones, nil
 }
 
 func SelectRaids() ([]Raid, int64, error) {
@@ -562,15 +582,6 @@ func RefreshReRaids(uuid string) error {
 	return nil
 }
 
-func SelectFilesystemsOfMachine(uuid string) ([]Filesystems, error) {
-	ones := make([]Filesystems, 0)
-	_, err := o.QueryTable("filesystems").Filter("machineId__exact", uuid).All(&ones)
-	if err != nil {
-		return ones, err
-	}
-	return ones, nil
-}
-
 func SelectFilesystems() ([]Filesystems, int64, error) {
 	ones := make([]Filesystems, 0)
 	num, err := o.QueryTable("filesystems").All(&ones)
@@ -637,15 +648,6 @@ func RefreshReFilesystems(uuid string) error {
 	return nil
 }
 
-func SelectInitiatorsOfMachine(uuid string) ([]Initiator, error) {
-	ones := make([]Initiator, 0)
-	_, err := o.QueryTable("initiator").Filter("machineId__exact", uuid).All(&ones)
-	if err != nil {
-		return ones, err
-	}
-	return ones, nil
-}
-
 func SelectInitiators() ([]Initiator, int64, error) {
 	ones := make([]Initiator, 0)
 	num, err := o.QueryTable("initiator").All(&ones)
@@ -709,15 +711,6 @@ func RefreshReInitiators(uuid string) error {
 	InsertInitiatorsOfMachine(ones, uuid)
 
 	return nil
-}
-
-func SelectRaidVolumesOfMachine(uuid string) ([]RaidVolume, error) {
-	ones := make([]RaidVolume, 0)
-	_, err := o.QueryTable("raid_volume").Filter("machineId__exact", uuid).All(&ones)
-	if err != nil {
-		return ones, err
-	}
-	return ones, nil
 }
 
 func SelectRaidVolumes() ([]RaidVolume, int64, error) {
@@ -786,15 +779,6 @@ func RefreshReRaidVolumes(uuid string) error {
 	return nil
 }
 
-func SelectInitVolumesOfMachine(uuid string) ([]InitiatorVolume, error) {
-	ones := make([]InitiatorVolume, 0)
-	_, err := o.QueryTable("initiator_volume").Filter("machineId__exact", uuid).All(&ones)
-	if err != nil {
-		return ones, err
-	}
-	return ones, nil
-}
-
 func SelectInitVolumes() ([]InitiatorVolume, int64, error) {
 	ones := make([]InitiatorVolume, 0)
 	num, err := o.QueryTable("initiator_volume").All(&ones)
@@ -858,15 +842,6 @@ func RefreshReInitVolumes(uuid string) error {
 	InsertInitVolumesOfMachine(ones, uuid)
 
 	return nil
-}
-
-func SelectNetInitsOfMachine(uuid string) ([]NetworkInitiator, error) {
-	ones := make([]NetworkInitiator, 0)
-	_, err := o.QueryTable("network_initiator").Filter("machineId__exact", uuid).All(&ones)
-	if err != nil {
-		return ones, err
-	}
-	return ones, nil
 }
 
 func SelectNetInits() ([]NetworkInitiator, int64, error) {
@@ -936,52 +911,231 @@ func RefreshReNetInits(uuid string) error {
 	return nil
 }
 
-func InsertDevice(ip string, version string, devtype string, size string) error {
-
-	var one Device
-
-	uran := Urandom()
-	uuid := uran + "zip" + strings.Join(strings.Split(ip, "."), "")
-
-	one.Uuid = uuid
-	one.Ip = ip
-	one.Version = version
-	one.Devtype = devtype
-	one.Size = size
-	one.Status = false
-	one.Created = time.Now()
-	if _, err := o.Insert(&one); err != nil {
-		return err
+func SelectJournals() ([]ResJournals, int64, error) {
+	ones := make([]Journal, 0)
+	jours := make([]ResJournals, 0)
+	num, err := o.QueryTable("journal").Filter("level", "warning").All(&ones)
+	if err != nil {
+		return jours, 0, err
 	}
 
-	/*err := InitSingleRemote(one)
+	for _, val := range ones {
+		var one Machine
+		o.QueryTable("machine").Filter("uuid", val.MachineId).All(&one)
+
+		var jour ResJournals
+		jour.Message = val.Message
+		jour.Created = val.Created_at
+		jour.Unix = val.Created_at.Unix()
+		jour.Level = val.Level
+		jour.MachineId = val.MachineId
+		jour.Ip = one.Ip
+		jour.Devtype = one.Devtype
+		jours = append(jours, jour)
+	}
+
+	return jours, num, nil
+}
+
+func InsertJournalsOfMachine(rejournals []Journals, uuid string) error {
+	if mlen := len(rejournals); mlen > 0 {
+		err := o.Using("default")
+		if err != nil {
+			return err
+		}
+
+		for i := 0; i < mlen; i++ {
+			var loc Journal
+			num, err := o.QueryTable("journal").Filter("id__exact", rejournals[i].Id).Filter("machineId__exact", uuid).All(&loc) //decide update or not
+			if err != nil {
+				return err
+			}
+			one := Journal{Journals: rejournals[i], MachineId: uuid}
+			if num == 0 {
+				_, err = o.Insert(&one)
+				if err != nil {
+					return err
+				}
+			} else {
+				_, err = o.Update(&one)
+				if err != nil {
+					return err
+				}
+			}
+
+		}
+	} else {
+		//TODO !!!!!!!! but if len == 0, nothing you can do
+		err := o.Using("default")
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+
+}
+
+func RefreshReJournals(uuid string) error {
+	o.QueryTable("journal").Filter("machineId", uuid).Delete()
+	name := "remote" + strings.Split(uuid, "zip")[1]
+
+	err := o.Using(name)
 	if err != nil {
 		return err
 	}
 
-	RefreshViews(uuid)*/
+	ones := make([]Journals, 0)
+	_, err = o.QueryTable("journals").All(&ones)
+	if err != nil {
+		return err
+	}
+
+	InsertJournalsOfMachine(ones, uuid)
 
 	return nil
 }
 
-func SelectAllDevices() ([]Device, error) {
+func InsertDevice(ip string, version string, size string, devtype string) error {
+	if devtype == "export" {
+		var one Export
+		num, err := o.QueryTable("export").Filter("ip", ip).All(&one)
+		if err != nil {
+			return err
+		}
+		if num == 0 {
+			uran := Urandom()
+			uuid := uran + "zip" + strings.Join(strings.Split(ip, "."), "")
+			one.Uuid = uuid
+			one.Ip = ip
+			one.Version = version
+			one.Size = size
+			one.Status = false
+			one.Created = time.Now()
+			if _, err := o.Insert(&one); err != nil {
+				return err
+			}
+		} else {
+			return errors.New("Ip address already exits")
+
+		}
+	} else if devtype == "storage" {
+		var one Storage
+		num, err := o.QueryTable("storage").Filter("ip", ip).All(&one)
+		if err != nil {
+			return err
+		}
+		if num == 0 {
+			uran := Urandom()
+			uuid := uran + "zip" + strings.Join(strings.Split(ip, "."), "")
+			one.Uuid = uuid
+			one.Ip = ip
+			one.Version = version
+			one.Size = size
+			one.Status = false
+			one.Created = time.Now()
+			if _, err := o.Insert(&one); err != nil {
+				return err
+			}
+		} else {
+			return errors.New("Ip address already exits")
+
+		}
+	} else if devtype == "client" {
+		var one Client
+		num, err := o.QueryTable("client").Filter("ip", ip).All(&one)
+		if err != nil {
+			return err
+		}
+		if num == 0 {
+			uran := Urandom()
+			uuid := uran + "zip" + strings.Join(strings.Split(ip, "."), "")
+			one.Uuid = uuid
+			one.Ip = ip
+			one.Version = version
+			one.Size = size
+			one.Status = false
+			one.Created = time.Now()
+			if _, err := o.Insert(&one); err != nil {
+				return err
+			}
+		} else {
+			return errors.New("Ip address already exits")
+
+		}
+	}
+
+	return nil
+}
+
+func SelectAllDevices() (Devices, error) {
 	//get all machine
-	ones := make([]Device, 0)
-	if _, err := o.QueryTable("device").All(&ones); err != nil {
+	var ones Devices
+	if _, err := o.QueryTable("export").All(&ones.Exports); err != nil {
+		return ones, err
+	}
+	if _, err := o.QueryTable("storage").All(&ones.Storages); err != nil {
+		return ones, err
+	}
+	if _, err := o.QueryTable("client").All(&ones.Clients); err != nil {
 		return ones, err
 	}
 	return ones, nil
 }
 
 func DelDevice(uuid string) error {
-	if _, err := o.QueryTable("device").Filter("uuid", uuid).Delete(); err != nil {
+	if _, err := o.QueryTable("export").Filter("uuid", uuid).Delete(); err != nil {
 		return err
+	}
+	if _, err := o.QueryTable("storage").Filter("uuid", uuid).Delete(); err != nil {
+		return err
+	}
+	if _, err := o.QueryTable("client").Filter("uuid", uuid).Delete(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func InsertExports(ip string, status bool) error {
+	var one Export
+	num, err := o.QueryTable("export").Filter("ip", ip).All(&one)
+	if err != nil {
+		return err
+	}
+
+	if num == 0 {
+		uran := Urandom()
+		uuid := uran + "zip" + strings.Join(strings.Split(ip, "."), "")
+		one.Uuid = uuid
+		one.Ip = ip
+		one.Version = "ZS2000"
+		one.Size = "4U"
+		one.Status = status
+		one.Created = time.Now()
+		if _, err := o.Insert(&one); err != nil {
+			return err
+		}
+	} else {
+		one.Status = status
+		_, err = o.Update(&one)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func InsertRozofsSetting(settingtype string, ip string, status bool) error {
+func InsertStorages(ip string, status bool, expands string) error {
+	var one Storage
+
+	one.Status = status
+	if _, err := o.Update(&one); err != nil {
+		return err
+	}
+	return nil
+}
+
+func InsertRozofsSetting(settingtype string, ip string, status bool, export string, cid int, sid int, slot string) error {
 	var one Device
 
 	num, err := o.QueryTable("device").Filter("devtype", settingtype).Filter("ip", ip).All(&one) //decide update or not
@@ -989,18 +1143,33 @@ func InsertRozofsSetting(settingtype string, ip string, status bool) error {
 		return err
 	}
 	if num == 0 {
-		if (settingtype == "storage") || (settingtype == "export") || (settingtype == "client") {
-			one.Devtype = settingtype
-			one.Ip = ip
-			one.Status = status
-			_, err = o.Insert(&one)
-			if err != nil {
-				return err
-			}
+		uran := Urandom()
+		uuid := uran + "zip" + strings.Join(strings.Split(ip, "."), "")
+
+		one.Uuid = uuid
+
+		one.Status = false
+		one.Devtype = settingtype
+		one.Ip = ip
+		one.Status = status
+		one.Version = "ZS2000"
+		one.Size = "4U"
+		one.Created = time.Now()
+
+		one.Export = export
+		one.Cid = cid
+		one.Sid = sid
+		one.Slot = slot
+		_, err = o.Insert(&one)
+		if err != nil {
+			return err
 		}
 	} else {
 		one.Status = status
-
+		one.Export = export
+		one.Cid = cid
+		one.Sid = sid
+		one.Slot = slot
 		_, err = o.Update(&one)
 		if err != nil {
 			return err
@@ -1009,13 +1178,103 @@ func InsertRozofsSetting(settingtype string, ip string, status bool) error {
 	return nil
 }
 
-func SelectRozofsSetting() ([]RozofsSetting, error) {
-	//get all data
-	buks := make([]RozofsSetting, 0)
-	if _, err := o.QueryTable("rozofs_setting").All(&buks); err != nil {
-		return buks, err
+func UpdateRozofsSetting(settingtype string, ip string, status bool) error {
+	var ones []Device
+	var export Device
+	_, err := o.QueryTable("device").Filter("devtype", "storage").Filter("export", ip).Exclude("expand", 1).All(&ones) //decide update or not
+	if err != nil {
+		return err
 	}
-	return buks, nil
+
+	for _, one := range ones {
+		one.Status = status
+		one.Export = ip
+		one.Expand = status
+
+		_, err = o.Update(&one)
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err = o.QueryTable("device").Filter("devtype", settingtype).Filter("ip", ip).All(&export) //decide update or not
+	export.Status = status
+	_, err = o.Update(&export)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func SelectUnexpanded(ip string, cid int) ([]Device, error) {
+	//get all data
+	ones := make([]Device, 0)
+	_, err := o.QueryTable("device").Filter("export", ip).Filter("cid", cid).All(&ones) //decide update or not
+	if err != nil {
+		return ones, err
+	}
+
+	return ones, nil
+}
+
+func StopRozofsSevices(uuid string) error {
+	var one Device
+	if _, err := o.QueryTable("device").Filter("uuid", uuid).All(&one); err != nil {
+		return err
+	}
+	one.Status = false
+	one.Export = ""
+	one.Cid = 0
+	one.Sid = 0
+	one.Slot = ""
+	one.Expand = false
+
+	if _, err := o.Update(&one); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func StopRozofsSetting(stoptype string, ip string) error {
+	var one Device
+	if num, err := o.QueryTable("device").Filter("devtype", stoptype).Filter("ip", ip).All(&one); num > 0 { //decide update or not
+		if err != nil {
+			return err
+		}
+		one.Status = false
+		one.Export = ""
+		one.Cid = 0
+		one.Sid = 0
+		one.Slot = ""
+		one.Expand = false
+
+		_, err = o.Update(&one)
+		if err != nil {
+			return err
+		}
+
+	}
+
+	if stoptype == "export" {
+
+		var ones []Device
+		_, err := o.QueryTable("device").Filter("devtype", "storage").Filter("export", ip).All(&ones) //decide update or not
+		if err != nil {
+			return err
+		}
+		fmt.Println("%+v", ones)
+		for _, one := range ones {
+			one.Expand = false
+			_, err = o.Update(&one)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func InsertCloudSetting(settingtype string, ip string, status bool) error {
@@ -1044,14 +1303,6 @@ func InsertCloudSetting(settingtype string, ip string, status bool) error {
 	return nil
 }
 
-func ClearRozofsSetting(stoptype string, ip string) error {
-	_, err := o.QueryTable("rozofs_setting").Filter("Ip", ip).Filter("Settingtype", stoptype).Delete()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func OnlyCloudSetting(settingtype string, ip string) (Setting, error) {
 	var one Setting
 	return one, nil
@@ -1074,17 +1325,17 @@ func ClearCloudSetting(stoptype string, ip string) error {
 	return nil
 }
 
-func Selectjournals() ([]Journals, error) {
+func SelectJournal() ([]LocalLog, error) {
 	//get all data
-	buks := make([]Journals, 0)
-	if _, err := o.QueryTable("journals").All(&buks); err != nil {
+	buks := make([]LocalLog, 0)
+	if _, err := o.QueryTable("local_log").All(&buks); err != nil {
 		return buks, err
 	}
 	return buks, nil
 }
 
-func InsertJournals(level string, message string, chinese_message string) error {
-	var buk Journals
+func InsertJournal(level string, message string, chinese_message string) error {
+	var buk LocalLog
 	buk.Created_at = time.Now()
 	buk.Updated_at = time.Now()
 	buk.Level = level
@@ -1096,8 +1347,8 @@ func InsertJournals(level string, message string, chinese_message string) error 
 	return nil
 }
 
-func ClearJournals() error {
-	_, err := o.QueryTable("journals").Filter("uid__isnull", false).Delete()
+func ClearJournal() error {
+	_, err := o.QueryTable("local_log").Filter("uid__isnull", false).Delete()
 
 	if err != nil {
 		return err
