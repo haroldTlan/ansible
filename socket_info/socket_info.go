@@ -1,16 +1,19 @@
 package main
 
 import (
-	//"encoding/json"
 	"fmt"
 	"github.com/googollee/go-socket.io"
+	"hwraid/topic"
 	"net/http"
 )
 
+var statTopic = topic.New()
+
 func main() {
+	ansible()
 	InfoStat()
-	//ServeStat()
 	temp()
+
 }
 
 func temp() {
@@ -23,7 +26,7 @@ func temp() {
 			defer statTopic.Unsubscribe(sub)
 			for {
 				stat := <-sub
-				fmt.Println(stat, sub)
+				fmt.Printf("%+v\n", stat)
 				err := ns.Emit("statistics", stat)
 				if err != nil {
 					return
@@ -34,6 +37,6 @@ func temp() {
 
 	sio.Handle("/socket.io/", sio)
 
-	http.ListenAndServe(":5000", sio)
+	http.ListenAndServe(":8014", sio)
 
 }
