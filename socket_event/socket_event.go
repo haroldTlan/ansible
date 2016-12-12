@@ -11,7 +11,7 @@ var statTopic = topic.New()
 
 func main() {
 	Initdb()
-	nsqConsumerInit()
+	NsqConsumerInit()
 	socket()
 
 }

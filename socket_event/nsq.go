@@ -16,7 +16,7 @@ var (
 	maxInFlight = 30
 )
 
-func nsqConsumerInit() {
+func NsqConsumerInit() {
 	go func() {
 		consumer.Register("CloudEvent", "consume82", maxInFlight, handle)
 		consumer.Connect(nsqdAddr)
