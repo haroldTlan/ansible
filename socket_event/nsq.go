@@ -28,12 +28,14 @@ func handle(msg *consumer.Message) {
 	var dat map[string]interface{}
 	if err := json.Unmarshal(msg.Body, &dat); err != nil {
 		WriteConf("unknown.conf", string(msg.Body))
+		fmt.Println(err)
 		return
 	}
 
 	result := newEvent(dat)
 	if result == nil {
 		WriteConf("unknown.conf", string(msg.Body))
+		fmt.Println(result)
 		return
 	}
 
@@ -43,31 +45,34 @@ func handle(msg *consumer.Message) {
 }
 
 func newEvent(values map[string]interface{}) interface{} {
-	if err := analyze(values["ip"].(string)); err != nil {
+	machineId, err := analyze(values["ip"].(string))
+	if err != nil {
 		return nil
 	}
-
 	switch values["event"].(string) {
 
 	case "ping.offline", "ping.online":
 		InsertJournals(values["event"].(string), values["ip"].(string))
 		return HeartBeat{Event: values["event"].(string),
-			Ip:     values["ip"].(string),
-			Status: values["status"].(string)}
+			Ip:        values["ip"].(string),
+			MachineId: machineId,
+			Status:    values["status"].(string)}
 
 	case "disk.unplugged":
 		InsertJournals(values["event"].(string), values["ip"].(string))
 		return DiskUnplugged{Event: values["event"].(string),
-			Uuid:     values["uuid"].(string),
-			Location: values["location"].(string),
-			DevName:  values["dev_name"].(string),
-			Ip:       values["ip"].(string)}
+			Uuid:      values["uuid"].(string),
+			Location:  values["location"].(string),
+			DevName:   values["dev_name"].(string),
+			MachineId: machineId,
+			Ip:        values["ip"].(string)}
 
-	case "disk.plugged", "raid.created", "volume.created", "volume.removed", "raid.degraded", "raid.failed", "volume.failed":
+	case "disk.plugged", "raid.created", "volume.created", "volume.removed", "raid.degraded", "raid.failed", "volume.failed", "rozofs.created", "rozofs.removed", "volume.normal", "raid.normal":
 		InsertJournals(values["event"].(string), values["ip"].(string))
 		return DiskPlugged{Event: values["event"].(string),
-			Uuid: values["uuid"].(string),
-			Ip:   values["ip"].(string)}
+			Uuid:      values["uuid"].(string),
+			MachineId: machineId,
+			Ip:        values["ip"].(string)}
 
 	case "raid.removed":
 		InsertJournals(values["event"].(string), values["ip"].(string))
@@ -80,21 +85,22 @@ func newEvent(values map[string]interface{}) interface{} {
 		return RaidRemove{Event: values["event"].(string),
 			Uuid:      values["uuid"].(string),
 			RaidDisks: ones,
+			MachineId: machineId,
 			Ip:        values["ip"].(string)}
 	}
 	return nil
 }
 
-func analyze(machine string) error {
+func analyze(machine string) (string, error) {
 	var one Machine
 	num, err := o.QueryTable("machine").Filter("ip", machine).All(&one)
 	if err != nil {
-		return err
+		return one.Uuid, err
 	}
 	if num != 1 {
-		return errors.New("Machine is not being monitored")
+		return one.Uuid, errors.New("Machine is not being monitored")
 	}
-	return nil
+	return one.Uuid, nil
 }
 
 func WriteConf(path string, str string) {
@@ -108,5 +114,4 @@ func WriteConf(path string, str string) {
 	if fi.Write(final); err != nil {
 		panic(err)
 	}
-
 }
