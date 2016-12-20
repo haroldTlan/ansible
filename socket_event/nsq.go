@@ -2,18 +2,16 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/crackcomm/nsqueue/consumer"
-	"hwraid/topic"
-	//"io/ioutil"
-	"errors"
 	"os"
+	"time"
 )
 
 var (
-	eventTopic  = topic.New()
-	nsqdAddr    = "192.168.2.83:4150"
 	maxInFlight = 30
+	nsqdAddr    = "127.0.0.1:4150"
 )
 
 func NsqConsumerInit() {
@@ -27,16 +25,22 @@ func NsqConsumerInit() {
 func handle(msg *consumer.Message) {
 	var dat map[string]interface{}
 	if err := json.Unmarshal(msg.Body, &dat); err != nil {
-		WriteConf("unknown.conf", string(msg.Body))
-		fmt.Println(err)
+		message := fmt.Sprintf("nsq json " + string(msg.Body))
+		AddLogtoChan(message, err)
+		WriteConf("unknown.conf", "\nerror(json):"+string(msg.Body))
 		return
 	}
 
 	result := newEvent(dat)
-	if result == nil {
-		WriteConf("unknown.conf", string(msg.Body))
-		fmt.Println(result)
+	if value, ok := result.(error); ok {
+		message := fmt.Sprintf("nsq newEvent " + string(msg.Body))
+		AddLogtoChan(message, value)
+		WriteConf("unknown.conf", "\nerror(event):"+string(msg.Body))
 		return
+	}
+
+	if err := refreshOverViews(dat["ip"].(string), dat["event"].(string)); err != nil {
+		AddLogtoChan("nsq refreshOver ", err)
 	}
 
 	eventTopic.Publish(result)
@@ -47,19 +51,23 @@ func handle(msg *consumer.Message) {
 func newEvent(values map[string]interface{}) interface{} {
 	machineId, err := analyze(values["ip"].(string))
 	if err != nil {
-		return nil
+		return err
 	}
-	switch values["event"].(string) {
 
-	case "ping.offline", "ping.online":
-		InsertJournals(values["event"].(string), values["ip"].(string))
+	switch values["event"].(string) {
+	case "ping.offline", "ping.online", "databox.created", "databox.removed":
 		return HeartBeat{Event: values["event"].(string),
 			Ip:        values["ip"].(string),
+			MachineId: machineId}
+
+	case "fs.removed", "fs.created":
+		return FsSystem{Event: values["event"].(string),
+			Volume:    values["volume"].(string),
+			Type:      values["type"].(string),
 			MachineId: machineId,
-			Status:    values["status"].(string)}
+			Ip:        values["ip"].(string)}
 
 	case "disk.unplugged":
-		InsertJournals(values["event"].(string), values["ip"].(string))
 		return DiskUnplugged{Event: values["event"].(string),
 			Uuid:      values["uuid"].(string),
 			Location:  values["location"].(string),
@@ -67,15 +75,13 @@ func newEvent(values map[string]interface{}) interface{} {
 			MachineId: machineId,
 			Ip:        values["ip"].(string)}
 
-	case "disk.plugged", "raid.created", "volume.created", "volume.removed", "raid.degraded", "raid.failed", "volume.failed", "rozofs.created", "rozofs.removed", "volume.normal", "raid.normal":
-		InsertJournals(values["event"].(string), values["ip"].(string))
+	case "disk.plugged", "raid.created", "volume.created", "volume.removed", "raid.degraded", "raid.failed", "volume.failed", "volume.normal", "raid.normal":
 		return DiskPlugged{Event: values["event"].(string),
 			Uuid:      values["uuid"].(string),
 			MachineId: machineId,
 			Ip:        values["ip"].(string)}
 
 	case "raid.removed":
-		InsertJournals(values["event"].(string), values["ip"].(string))
 		disks := values["raid_disks"].([]interface{})
 		var ones []string
 		for _, val := range disks {
@@ -91,27 +97,49 @@ func newEvent(values map[string]interface{}) interface{} {
 	return nil
 }
 
-func analyze(machine string) (string, error) {
-	var one Machine
-	num, err := o.QueryTable("machine").Filter("ip", machine).All(&one)
+func refreshOverViews(ip, event string) error {
+	InsertJournals(event, ip)
+	_, one, err := SelectMachine(ip)
 	if err != nil {
-		return one.Uuid, err
+		return err
 	}
-	if num != 1 {
-		return one.Uuid, errors.New("Machine is not being monitored")
+
+	if event == "ping.offline" {
+		DelOutlineMachine(one.Uuid)
+
+	} else if event == "ping.online" {
+		time.Sleep(15 * time.Second)
+		if err := RefreshStores(one.Uuid); err != nil {
+			return err
+		}
+
+	} else {
+		time.Sleep(15 * time.Second)
+		if err := RefreshStores(one.Uuid); err != nil {
+			return err
+		}
+		time.Sleep(4 * time.Second)
 	}
-	return one.Uuid, nil
+	return nil
+}
+
+func analyze(machine string) (string, error) {
+	if num, one, err := SelectMachine(machine); err == nil && num > 0 {
+		return one.Uuid, nil
+	}
+
+	return "", errors.New("Machine is not being monitored")
 }
 
 func WriteConf(path string, str string) {
 	fi, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 	if err != nil {
-		panic(err)
+		AddLogtoChan("nsq read ", err)
 	}
 	defer fi.Close()
 
 	final := []byte(str + "\n")
 	if fi.Write(final); err != nil {
-		panic(err)
+		AddLogtoChan("nsq write ", err)
 	}
 }

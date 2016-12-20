@@ -1,52 +1,54 @@
 package main
 
 import (
-	"fmt"
+	"cloud/logger"
+	"cloud/topic"
 	"github.com/googollee/go-socket.io"
-	"hwraid/topic"
 	"net/http"
 )
 
-var statTopic = topic.New()
+var eventTopic = topic.New()
+var ChanLogEvent chan Log
 
 func main() {
+	ChanLogEvent = make(chan Log, 1)
+
+	loggerChannel()
 	Initdb()
 	NsqConsumerInit()
 	socket()
-
 }
 
 func socket() {
 	sio := socketio.NewSocketIOServer(&socketio.Config{})
-
 	sio.Of("/event").On("connect", func(ns *socketio.NameSpace) {
-		fmt.Println("\nevent...\n")
+		AddLogtoChan("connect", nil)
 		go func(ns *socketio.NameSpace) {
 			sub := eventTopic.Subscribe()
 			defer eventTopic.Unsubscribe(sub)
 			for {
 				e := <-sub
-				/*			bytes, err := json.Marshal(e)
-							if err != nil {
-								continue
-							}*/
-				/*			var dat map[string]interface{}
-							if err := json.Unmarshal([]byte(e), &dat); err != nil {
-								panic(err)
-							}
-							fmt.Printf("%+v\n", dat)*/
-
-				//			err = ns.Emit("diskevent", string(bytes))
 				err := ns.Emit("event", e)
 				if err != nil {
+					AddLogtoChan("socket", err)
 					return
 				}
 			}
 		}(ns)
 	})
-	fmt.Println("socket")
+
 	sio.Handle("/socket.io/", sio)
-
 	http.ListenAndServe(":8012", sio)
+}
 
+func loggerChannel() {
+	go func() {
+		for {
+			select {
+			case v := <-ChanLogEvent:
+				logger.OutputLogger(v.Level, v.Message)
+			default:
+			}
+		}
+	}()
 }
