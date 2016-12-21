@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/crackcomm/nsqueue/consumer"
 	"os"
-	"time"
 )
 
 var (
@@ -39,7 +38,7 @@ func handle(msg *consumer.Message) {
 		return
 	}
 
-	if err := refreshOverViews(dat["ip"].(string), dat["event"].(string)); err != nil {
+	if err := RefreshOverViews(dat["ip"].(string), dat["event"].(string)); err != nil {
 		AddLogtoChan("nsq refreshOver ", err)
 	}
 
@@ -93,32 +92,6 @@ func newEvent(values map[string]interface{}) interface{} {
 			RaidDisks: ones,
 			MachineId: machineId,
 			Ip:        values["ip"].(string)}
-	}
-	return nil
-}
-
-func refreshOverViews(ip, event string) error {
-	InsertJournals(event, ip)
-	_, one, err := SelectMachine(ip)
-	if err != nil {
-		return err
-	}
-
-	if event == "ping.offline" {
-		DelOutlineMachine(one.Uuid)
-
-	} else if event == "ping.online" {
-		time.Sleep(15 * time.Second)
-		if err := RefreshStores(one.Uuid); err != nil {
-			return err
-		}
-
-	} else {
-		time.Sleep(15 * time.Second)
-		if err := RefreshStores(one.Uuid); err != nil {
-			return err
-		}
-		time.Sleep(4 * time.Second)
 	}
 	return nil
 }

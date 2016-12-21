@@ -159,6 +159,19 @@ type NetworkInitiator struct {
 	MachineId string `orm:"column(machineId)" json:"machineId"`
 }
 
+type Journals struct {
+	Id         int
+	Created_at time.Time `orm:"index" json:"created"`
+	Updated_at time.Time `orm:"index" json:"updated"`
+	Level      string    `json:"level"`
+	Message    string    `json:"message"`
+}
+
+type Journal struct {
+	Journals
+	MachineId string `orm:"column(machineId)" json:"machineId"`
+}
+
 type Emergency struct {
 	Uid            int       `orm:"pk" json:"uid"`
 	Created_at     time.Time `orm:"index" json:"created"`
@@ -169,6 +182,13 @@ type Emergency struct {
 	Message        string    `json:"message"`
 	ChineseMessage string    `json:"chinese_message"`
 	Status         bool      `json:"status"`
+}
+
+type Mail struct {
+	Uid     int    `orm:"pk" json:"uid"`
+	Address string `json:"address"`
+	Level   int    `json:"level"`
+	Ttl     int    `json:"ttl"`
 }
 
 type Log struct {

@@ -13,8 +13,42 @@ var o orm.Ormer
 func Initdb() {
 	orm.RegisterDriver("mysql", orm.DRMySQL)
 	orm.RegisterDataBase("default", "mysql", "root:passwd@/speediodb?charset=utf8", 30)
-	orm.RegisterModel(new(Machine), new(Emergency))
+	orm.RegisterModel(new(Machine), new(Disks), new(Disk), new(Raid), new(Raids), new(Volume), new(Volumes), new(Filesystems), new(Xfs), new(Initiator), new(Initiators), new(Emergency), new(RaidVolumes), new(RaidVolume), new(InitiatorVolumes), new(InitiatorVolume), new(NetworkInitiators), new(NetworkInitiator), new(Mail), new(Journal))
+
 	o = orm.NewOrm()
+	InitRemote()
+}
+
+func InitRemote() error {
+	machines := make([]Machine, 0)
+	if _, err := o.QueryTable("machine").All(&machines); err != nil {
+		return err
+	}
+	if mlen := len(machines); mlen > 0 {
+		for i := 0; i < mlen; i++ {
+			name, ip := MachineType(machines[i])
+			err := orm.RegisterDataBase(fmt.Sprintf("%s", name), "mysql", fmt.Sprintf("root:passwd@tcp(%s:3306)/speediodb?charset=utf8", ip), 30)
+			if err != nil {
+				//DelMachine(machines[i].Uuid)
+				AddLogtoChan("InitRemote failed", err)
+				return err
+			}
+
+		}
+
+	} else {
+		//TODO!!!!!
+	}
+	return nil
+
+}
+
+func MachineType(machine Machine) (string, string) {
+	ip := machine.Ip
+	tempIp := strings.Join(strings.Split(ip, "."), "")
+	name := "remote" + tempIp
+
+	return name, ip
 }
 
 func SelectMachine(ip string) (int64, Machine, error) {
@@ -487,6 +521,20 @@ func RefreshReNetInits(uuid string) error {
 	return nil
 }
 
+func SelectMulMails(uid int, level int) (bool, error) {
+	var one Mail
+	var two Emergency
+	if _, err := o.QueryTable("mail").Filter("level", level).All(&one); err != nil {
+		return two.Status, err
+	}
+	time.Sleep(time.Duration(one.Ttl) * time.Second)
+
+	if _, err := o.QueryTable("emergency").Filter("uid", uid).All(&two); err != nil {
+		return two.Status, err
+	}
+	return two.Status, nil
+}
+
 func InsertJournals(event, machine string) error {
 	var one Emergency
 	switch event {
@@ -506,6 +554,7 @@ func InsertJournals(event, machine string) error {
 	one.Created_at = time.Now()
 	one.Updated_at = time.Now()
 	if _, err := o.Insert(&one); err != nil {
+		AddLogtoChan("InsertJournals", err)
 		return err
 	}
 
@@ -547,7 +596,7 @@ func messageTransform(event string) (string, string) {
 		chinese_message := "删除虚拟磁盘"
 		return message, chinese_message
 	case "raid.degraded":
-		message := "raid.degraded"
+		message := "raid degraded"
 		chinese_message := "阵列降级"
 		return message, chinese_message
 	case "raid.failed":
@@ -557,6 +606,14 @@ func messageTransform(event string) (string, string) {
 	case "volume.failed":
 		message := "volume failed"
 		chinese_message := "虚拟磁盘损坏"
+		return message, chinese_message
+	case "raid.normal":
+		message := "raid normal"
+		chinese_message := "阵列恢复正常"
+		return message, chinese_message
+	case "volume.normal":
+		message := "volume normal"
+		chinese_message := "虚拟磁盘恢复正常"
 		return message, chinese_message
 	default:
 		return "", "未知"
@@ -635,19 +692,4 @@ func DelOutlineMachine(uuid string) error {
 		return err
 	}
 	return nil
-}
-
-func AddLogtoChan(apiName string, err error) {
-	var message string
-	var log Log
-	if err == nil {
-		message = fmt.Sprintf("event success")
-		log = Log{Level: "INFO", Message: message}
-	} else {
-		message = fmt.Sprintf("event %s, %s", apiName, err)
-		log = Log{Level: "ERROR", Message: message}
-	}
-
-	ChanLogEvent <- log
-	return
 }
