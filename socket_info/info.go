@@ -174,7 +174,7 @@ func AddLogtoChan(apiName string, err error) {
 		log = Log{Level: "INFO", Message: message}
 	} else {
 		pc, fn, line, _ := runtime.Caller(1)
-		message = fmt.Sprintf("[%s %s:%d] statistics %s, %s", pc, fn, line, apiName, err)
+		message = fmt.Sprintf("[%s %s:%d] statistics %s, %s", runtime.FuncForPC(pc).Name(), fn, line, apiName, err)
 		log = Log{Level: "ERROR", Message: message}
 	}
 
