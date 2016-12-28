@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"time"
 )
@@ -68,7 +69,7 @@ func InfoStat() {
 			allInfo.Exports = make([]Device, 0)
 			allInfo.Storages = make([]Device, 0)
 
-			str := readConf("static")
+			str := readConf("/etc/ansible/info/static")
 			var dat []map[string]interface{}
 			if err := json.Unmarshal([]byte(str), &dat); err != nil {
 				AddLogtoChan("json static", err)
@@ -172,7 +173,8 @@ func AddLogtoChan(apiName string, err error) {
 		message = fmt.Sprintf("statistics success")
 		log = Log{Level: "INFO", Message: message}
 	} else {
-		message = fmt.Sprintf("statistics %s, %s", apiName, err)
+		pc, fn, line, _ := runtime.Caller(1)
+		message = fmt.Sprintf("[%s %s:%d] statistics %s, %s", pc, fn, line, apiName, err)
 		log = Log{Level: "ERROR", Message: message}
 	}
 

@@ -31,7 +31,7 @@ func socket() {
 				stat := <-sub
 				err := ns.Emit("statistics", stat)
 				if err != nil {
-					//					AddLogtoChan("socket", err)
+					AddLogtoChan("socket", err)
 					return
 				}
 			}
@@ -40,7 +40,6 @@ func socket() {
 
 	sio.Handle("/socket.io/", sio)
 	http.ListenAndServe(":5000", sio)
-
 }
 
 func LoggerChannel() {
