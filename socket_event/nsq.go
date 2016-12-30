@@ -54,7 +54,7 @@ func newEvent(values map[string]interface{}) interface{} {
 	}
 
 	switch values["event"].(string) {
-	case "ping.offline", "ping.online", "databox.created", "databox.removed":
+	case "ping.offline", "ping.online":
 		return HeartBeat{Event: values["event"].(string),
 			Ip:        values["ip"].(string),
 			MachineId: machineId}
@@ -92,7 +92,16 @@ func newEvent(values map[string]interface{}) interface{} {
 			RaidDisks: ones,
 			MachineId: machineId,
 			Ip:        values["ip"].(string)}
+
+	case "machine.created":
+		if err := InitSingleRemote(values["ip"].(string)); err != nil {
+			return err
+		}
+		return HeartBeat{Event: values["event"].(string),
+			Ip:        values["ip"].(string),
+			MachineId: machineId}
 	}
+
 	return nil
 }
 

@@ -3,6 +3,7 @@ package main
 import (
 	"cloud"
 	"fmt"
+	"runtime"
 	"time"
 )
 
@@ -40,7 +41,8 @@ func MulAttention(ip, event string) error {
 	if _, err := o.QueryTable("emergency").Filter("event", event).Filter("status", 0).All(&ones); err != nil || len(ones) < 1 {
 		return err
 	}
-	RefreshMulAttention(ones[len(ones)-1].Uid, ip+" "+event)
+	_, message := messageTransform(event)
+	RefreshMulAttention(ones[len(ones)-1].Uid, ip+" "+message)
 	return nil
 }
 
@@ -50,7 +52,6 @@ func RefreshMulAttention(uid int, message string) {
 		if err != nil {
 			AddLogtoChan("RefreshMulAttention_1", err)
 		}
-		//time.Sleep(time.Duration(ttl_1) * time.Second)
 		SendMails(message, 1)
 
 		status, err := SelectMulMails(uid, 2)
@@ -60,7 +61,6 @@ func RefreshMulAttention(uid int, message string) {
 		if status {
 			return
 		} else {
-			//	time.Sleep(time.Duration(ttl_2) * time.Second)
 			SendMails(message, 2)
 		}
 
@@ -71,7 +71,6 @@ func RefreshMulAttention(uid int, message string) {
 		if status {
 			return
 		} else {
-			//	time.Sleep(time.Duration(ttl_3) * time.Second)
 			SendMails(message, 3)
 			return
 		}
@@ -98,7 +97,8 @@ func AddLogtoChan(apiName string, err error) {
 		message = fmt.Sprintf("event success")
 		log = Log{Level: "INFO", Message: message}
 	} else {
-		message = fmt.Sprintf("event %s, %s", apiName, err)
+		pc, fn, line, _ := runtime.Caller(1)
+		message = fmt.Sprintf("[%s %s:%d] event %s, %s", runtime.FuncForPC(pc).Name(), fn, line, apiName, err)
 		log = Log{Level: "ERROR", Message: message}
 	}
 

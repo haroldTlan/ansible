@@ -33,14 +33,18 @@ func InitRemote() error {
 				AddLogtoChan("InitRemote failed", err)
 				return err
 			}
-
 		}
-
 	} else {
 		//TODO!!!!!
 	}
 	return nil
+}
 
+func InitSingleRemote(ip string) error {
+	name := strings.Join(strings.Split(ip, "."), "")
+	fmt.Println(ip, name)
+	orm.RegisterDataBase(fmt.Sprintf("%s", name), "mysql", fmt.Sprintf("root:passwd@tcp(%s:3306)/speediodb?charset=utf8", ip), 30)
+	return nil
 }
 
 func MachineType(machine Machine) (string, string) {
