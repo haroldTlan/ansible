@@ -16,35 +16,30 @@ func Initdb() {
 	orm.RegisterModel(new(Machine), new(Disks), new(Disk), new(Raid), new(Raids), new(Volume), new(Volumes), new(Filesystems), new(Xfs), new(Initiator), new(Initiators), new(Emergency), new(RaidVolumes), new(RaidVolume), new(InitiatorVolumes), new(InitiatorVolume), new(NetworkInitiators), new(NetworkInitiator), new(Mail), new(Journal))
 
 	o = orm.NewOrm()
-	InitRemote()
+	InitLocalRemote()
 }
 
-func InitRemote() error {
+func InitLocalRemote() {
 	machines := make([]Machine, 0)
 	if _, err := o.QueryTable("machine").All(&machines); err != nil {
-		return err
+		AddLogtoChan(err)
+		return
 	}
 	if mlen := len(machines); mlen > 0 {
 		for i := 0; i < mlen; i++ {
 			name, ip := MachineType(machines[i])
 			err := orm.RegisterDataBase(fmt.Sprintf("%s", name), "mysql", fmt.Sprintf("root:passwd@tcp(%s:3306)/speediodb?charset=utf8", ip), 30)
 			if err != nil {
-				//DelMachine(machines[i].Uuid)
-				AddLogtoChan("InitRemote failed", err)
-				return err
+				AddLogtoChan(err)
+				return
 			}
 		}
-	} else {
-		//TODO!!!!!
 	}
-	return nil
 }
 
-func InitSingleRemote(ip string) error {
+func InitSingleRemote(ip string) {
 	name := strings.Join(strings.Split(ip, "."), "")
-	fmt.Println(ip, name)
 	orm.RegisterDataBase(fmt.Sprintf("%s", name), "mysql", fmt.Sprintf("root:passwd@tcp(%s:3306)/speediodb?charset=utf8", ip), 30)
-	return nil
 }
 
 func MachineType(machine Machine) (string, string) {
@@ -59,6 +54,7 @@ func SelectMachine(ip string) (int64, Machine, error) {
 	var one Machine
 	num, err := o.QueryTable("machine").Filter("ip", ip).All(&one)
 	if err != nil {
+		AddLogtoChan(err)
 		return 0, one, err
 	}
 	return num, one, nil
@@ -66,8 +62,8 @@ func SelectMachine(ip string) (int64, Machine, error) {
 
 func InsertDisksOfMachine(redisks []Disks, uuid string) error {
 	if mlen := len(redisks); mlen > 0 {
-		err := o.Using("default")
-		if err != nil {
+		if err := o.Using("default"); err != nil {
+			AddLogtoChan(err)
 			return err
 		}
 
@@ -75,59 +71,56 @@ func InsertDisksOfMachine(redisks []Disks, uuid string) error {
 			var loc Disk
 			num, err := o.QueryTable("disk").Filter("uuid__exact", redisks[i].Uuid).Filter("machineId__exact", uuid).All(&loc) //decide update or not
 			if err != nil {
+				AddLogtoChan(err)
 				return err
 			}
 			one := Disk{Disks: redisks[i], MachineId: uuid}
 			if num == 0 {
-				_, err = o.Insert(&one)
-				if err != nil {
+				if _, err := o.Insert(&one); err != nil {
+					AddLogtoChan(err)
 					return err
 				}
 			} else {
-				_, err = o.Update(&one)
-				if err != nil {
+				if _, err := o.Update(&one); err != nil {
+					AddLogtoChan(err)
 					return err
 				}
 			}
-
 		}
 	} else {
-		//TODO !!!!!!!! but if len == 0, nothing you can do
-		err := o.Using("default")
-		if err != nil {
+		if err := o.Using("default"); err != nil {
+			AddLogtoChan(err)
 			return err
 		}
 	}
 	return nil
-
 }
 
 func RefreshReDisks(uuid string) error {
 	o.QueryTable("disk").Filter("machineId", uuid).Delete()
 	name := "remote" + strings.Split(uuid, "zip")[1]
 
-	err := o.Using(name)
-	if err != nil {
-		fmt.Println(err)
+	if err := o.Using(name); err != nil {
+		AddLogtoChan(err)
 		return err
 	}
 
 	ones := make([]Disks, 0)
-	_, err = o.QueryTable("disks").Exclude("location__exact", "").All(&ones)
-	if err != nil {
-		fmt.Println(err)
+	if _, err := o.QueryTable("disks").Exclude("location__exact", "").All(&ones); err != nil {
+		AddLogtoChan(err)
 		return err
 	}
 
-	InsertDisksOfMachine(ones, uuid)
-
+	if err := InsertDisksOfMachine(ones, uuid); err != nil {
+		return err
+	}
 	return nil
 }
 
 func InsertRaidsOfMachine(reraids []Raids, uuid string) error {
 	if mlen := len(reraids); mlen > 0 {
-		err := o.Using("default")
-		if err != nil {
+		if err := o.Using("default"); err != nil {
+			AddLogtoChan(err)
 			return err
 		}
 
@@ -135,27 +128,26 @@ func InsertRaidsOfMachine(reraids []Raids, uuid string) error {
 			var loc Raid
 			num, err := o.QueryTable("raid").Filter("uuid__exact", reraids[i].Uuid).All(&loc) //decide update or not
 			if err != nil {
+				AddLogtoChan(err)
 				return err
 			}
 			one := Raid{Raids: reraids[i], MachineId: uuid}
 			if num == 0 {
-				_, err = o.Insert(&one)
-				if err != nil {
+				if _, err := o.Insert(&one); err != nil {
+					AddLogtoChan(err)
 					return err
 				}
 			} else {
-				_, err = o.Update(&one)
-				if err != nil {
+				if _, err := o.Update(&one); err != nil {
+					AddLogtoChan(err)
 					return err
 				}
 			}
 
 		}
 	} else {
-		//TODO !!!!!!!! but if len == 0, nothing you can do
-
-		err := o.Using("default")
-		if err != nil {
+		if err := o.Using("default"); err != nil {
+			AddLogtoChan(err)
 			return err
 		}
 	}
@@ -166,27 +158,27 @@ func RefreshReRaids(uuid string) error {
 	o.QueryTable("raid").Filter("machineId", uuid).Delete()
 	name := "remote" + strings.Split(uuid, "zip")[1]
 
-	err := o.Using(name)
-	if err != nil {
-		fmt.Println(err)
+	if err := o.Using(name); err != nil {
+		AddLogtoChan(err)
 		return err
 	}
 
 	ones := make([]Raids, 0)
-	_, err = o.QueryTable("raids").Filter("deleted__exact", 0).All(&ones)
-	if err != nil {
-		fmt.Println(err)
+	if _, err := o.QueryTable("raids").Filter("deleted__exact", 0).All(&ones); err != nil {
+		AddLogtoChan(err)
 		return err
 	}
-	InsertRaidsOfMachine(ones, uuid)
+	if err := InsertRaidsOfMachine(ones, uuid); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 func InsertVolumesOfMachine(revols []Volumes, uuid string) error {
 	if mlen := len(revols); mlen > 0 {
-		err := o.Using("default")
-		if err != nil {
+		if err := o.Using("default"); err != nil {
+			AddLogtoChan(err)
 			return err
 		}
 
@@ -194,26 +186,25 @@ func InsertVolumesOfMachine(revols []Volumes, uuid string) error {
 			var loc Volume
 			num, err := o.QueryTable("volume").Filter("uuid__exact", revols[i].Uuid).All(&loc) //decide update or not
 			if err != nil {
+				AddLogtoChan(err)
 				return err
 			}
 			one := Volume{Volumes: revols[i], MachineId: uuid}
 			if num == 0 {
-				_, err = o.Insert(&one)
-				if err != nil {
+				if _, err := o.Insert(&one); err != nil {
+					AddLogtoChan(err)
 					return err
 				}
 			} else {
-				_, err = o.Update(&one)
-				if err != nil {
+				if _, err := o.Update(&one); err != nil {
+					AddLogtoChan(err)
 					return err
 				}
 			}
-
 		}
 	} else {
-		//TODO !!!!!!!! but if len == 0, nothing you can do
-		err := o.Using("default")
-		if err != nil {
+		if err := o.Using("default"); err != nil {
+			AddLogtoChan(err)
 			return err
 		}
 	}
@@ -224,27 +215,28 @@ func RefreshReVolumes(uuid string) error {
 	o.QueryTable("volume").Filter("machineId", uuid).Delete()
 	name := "remote" + strings.Split(uuid, "zip")[1]
 
-	err := o.Using(name)
-	if err != nil {
-		fmt.Println(err)
+	if err := o.Using(name); err != nil {
+		AddLogtoChan(err)
 		return err
 	}
 
 	ones := make([]Volumes, 0)
-	_, err = o.QueryTable("volumes").Filter("deleted__exact", 0).All(&ones)
-	if err != nil {
-		fmt.Println(err)
+	if _, err := o.QueryTable("volumes").Filter("deleted__exact", 0).All(&ones); err != nil {
+		AddLogtoChan(err)
 		return err
 	}
-	InsertVolumesOfMachine(ones, uuid)
+
+	if err := InsertVolumesOfMachine(ones, uuid); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 func InsertFilesystemsOfMachine(refs []Xfs, uuid string) error {
 	if mlen := len(refs); mlen > 0 {
-		err := o.Using("default")
-		if err != nil {
+		if err := o.Using("default"); err != nil {
+			AddLogtoChan(err)
 			return err
 		}
 
@@ -252,26 +244,25 @@ func InsertFilesystemsOfMachine(refs []Xfs, uuid string) error {
 			var loc Filesystems
 			num, err := o.QueryTable("filesystems").Filter("uuid__exact", refs[i].Uuid).All(&loc) //decide update or not
 			if err != nil {
+				AddLogtoChan(err)
 				return err
 			}
 			one := Filesystems{Xfs: refs[i], MachineId: uuid}
 			if num == 0 {
-				_, err = o.Insert(&one)
-				if err != nil {
+				if _, err := o.Insert(&one); err != nil {
+					AddLogtoChan(err)
 					return err
 				}
 			} else {
-				_, err = o.Update(&one)
-				if err != nil {
+				if _, err := o.Update(&one); err != nil {
+					AddLogtoChan(err)
 					return err
 				}
 			}
-
 		}
 	} else {
-		//TODO !!!!!!!! but if len == 0, nothing you can do
-		err := o.Using("default")
-		if err != nil {
+		if err := o.Using("default"); err != nil {
+			AddLogtoChan(err)
 			return err
 		}
 	}
@@ -282,53 +273,52 @@ func RefreshReFilesystems(uuid string) error {
 	o.QueryTable("filesystems").Filter("machineId", uuid).Delete()
 	name := "remote" + strings.Split(uuid, "zip")[1]
 
-	err := o.Using(name)
-	if err != nil {
-		fmt.Println(err)
+	if err := o.Using(name); err != nil {
+		AddLogtoChan(err)
 		return err
 	}
 
 	ones := make([]Xfs, 0)
-	_, err = o.QueryTable("xfs").All(&ones)
-	if err != nil {
+	if _, err := o.QueryTable("xfs").All(&ones); err != nil {
+		AddLogtoChan(err)
 		return err
 	}
-	InsertFilesystemsOfMachine(ones, uuid)
+	if err := InsertFilesystemsOfMachine(ones, uuid); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 func InsertInitiatorsOfMachine(refs []Initiators, uuid string) error {
 	if mlen := len(refs); mlen > 0 {
-		err := o.Using("default")
-		if err != nil {
+		if err := o.Using("default"); err != nil {
+			AddLogtoChan(err)
 			return err
 		}
 		for i := 0; i < mlen; i++ {
 			var loc Initiator
 			num, err := o.QueryTable("initiator").Filter("wwn__exact", refs[i].Wwn).All(&loc) //decide update or not
 			if err != nil {
-				fmt.Println(err)
+				AddLogtoChan(err)
 				return err
 			}
 			one := Initiator{Initiators: refs[i], MachineId: uuid}
 			if num == 0 {
-				_, err = o.Insert(&one)
-				if err != nil {
+				if _, err := o.Insert(&one); err != nil {
+					AddLogtoChan(err)
 					return err
 				}
 			} else {
-				_, err = o.Update(&one)
-				if err != nil {
+				if _, err := o.Update(&one); err != nil {
+					AddLogtoChan(err)
 					return err
 				}
 			}
-
 		}
 	} else {
-		//TODO !!!!!!!! but if len == 0, nothing you can do
-		err := o.Using("default")
-		if err != nil {
+		if err := o.Using("default"); err != nil {
+			AddLogtoChan(err)
 			return err
 		}
 	}
@@ -339,25 +329,27 @@ func RefreshReInitiators(uuid string) error {
 	o.QueryTable("initiator").Filter("machineId", uuid).Delete()
 	name := "remote" + strings.Split(uuid, "zip")[1]
 
-	err := o.Using(name)
-	if err != nil {
+	if err := o.Using(name); err != nil {
+		AddLogtoChan(err)
 		return err
 	}
 
 	ones := make([]Initiators, 0)
-	_, err = o.QueryTable("initiators").All(&ones)
-	if err != nil {
+	if _, err := o.QueryTable("initiators").All(&ones); err != nil {
+		AddLogtoChan(err)
 		return err
 	}
-	InsertInitiatorsOfMachine(ones, uuid)
+	if err := InsertInitiatorsOfMachine(ones, uuid); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 func InsertRaidVolumesOfMachine(remote []RaidVolumes, uuid string) error {
 	if mlen := len(remote); mlen > 0 {
-		err := o.Using("default")
-		if err != nil {
+		if err := o.Using("default"); err != nil {
+			AddLogtoChan(err)
 			return err
 		}
 
@@ -365,26 +357,26 @@ func InsertRaidVolumesOfMachine(remote []RaidVolumes, uuid string) error {
 			var loc RaidVolume
 			num, err := o.QueryTable("raid_volume").Filter("volume__exact", remote[i].Volume).All(&loc) //decide update or not
 			if err != nil {
+				AddLogtoChan(err)
 				return err
 			}
 			one := RaidVolume{RaidVolumes: remote[i], MachineId: uuid}
 			if num == 0 {
-				_, err = o.Insert(&one)
-				if err != nil {
+				if _, err := o.Insert(&one); err != nil {
+					AddLogtoChan(err)
 					return err
 				}
 			} else {
-				_, err = o.Update(&one)
-				if err != nil {
+				if _, err := o.Update(&one); err != nil {
+					AddLogtoChan(err)
 					return err
 				}
 			}
 
 		}
 	} else {
-		//TODO !!!!!!!! but if len == 0, nothing you can do
-		err := o.Using("default")
-		if err != nil {
+		if err := o.Using("default"); err != nil {
+			AddLogtoChan(err)
 			return err
 		}
 	}
@@ -395,52 +387,52 @@ func RefreshReRaidVolumes(uuid string) error {
 	o.QueryTable("raid_volume").Filter("machineId", uuid).Delete()
 	name := "remote" + strings.Split(uuid, "zip")[1]
 
-	err := o.Using(name)
-	if err != nil {
-		fmt.Println(err)
+	if err := o.Using(name); err != nil {
+		AddLogtoChan(err)
 		return err
 	}
 
 	ones := make([]RaidVolumes, 0)
-	_, err = o.QueryTable("raid_volumes").All(&ones)
-	if err != nil {
+	if _, err := o.QueryTable("raid_volumes").All(&ones); err != nil {
+		AddLogtoChan(err)
 		return err
 	}
-	InsertRaidVolumesOfMachine(ones, uuid)
+	if err := InsertRaidVolumesOfMachine(ones, uuid); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 func InsertInitVolumesOfMachine(remote []InitiatorVolumes, uuid string) error {
 	if mlen := len(remote); mlen > 0 {
-		err := o.Using("default")
-		if err != nil {
+		if err := o.Using("default"); err != nil {
+			AddLogtoChan(err)
 			return err
 		}
 		for i := 0; i < mlen; i++ {
 			var loc InitiatorVolume
 			num, err := o.QueryTable("initiator_volume").Filter("volume__exact", remote[i].Initiator).All(&loc) //decide update or not     !!!!!!!!!!!!!!!!!key is not initiator
 			if err != nil {
+				AddLogtoChan(err)
 				return err
 			}
 			one := InitiatorVolume{InitiatorVolumes: remote[i], MachineId: uuid}
 			if num == 0 {
-				_, err = o.Insert(&one)
-				if err != nil {
+				if _, err := o.Insert(&one); err != nil {
+					AddLogtoChan(err)
 					return err
 				}
 			} else {
-				_, err = o.Update(&one)
-				if err != nil {
+				if _, err := o.Update(&one); err != nil {
+					AddLogtoChan(err)
 					return err
 				}
 			}
-
 		}
 	} else {
-		//TODO !!!!!!!! but if len == 0, nothing you can do
-		err := o.Using("default")
-		if err != nil {
+		if err := o.Using("default"); err != nil {
+			AddLogtoChan(err)
 			return err
 		}
 	}
@@ -451,26 +443,27 @@ func RefreshReInitVolumes(uuid string) error {
 	o.QueryTable("initiator_volume").Filter("machineId", uuid).Delete()
 	name := "remote" + strings.Split(uuid, "zip")[1]
 
-	err := o.Using(name)
-	if err != nil {
-		fmt.Println(err)
+	if err := o.Using(name); err != nil {
+		AddLogtoChan(err)
 		return err
 	}
 
 	ones := make([]InitiatorVolumes, 0)
-	_, err = o.QueryTable("initiator_volumes").All(&ones)
-	if err != nil {
+	if _, err := o.QueryTable("initiator_volumes").All(&ones); err != nil {
+		AddLogtoChan(err)
 		return err
 	}
-	InsertInitVolumesOfMachine(ones, uuid)
+	if err := InsertInitVolumesOfMachine(ones, uuid); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 func InsertNetInitsOfMachine(remote []NetworkInitiators, uuid string) error {
 	if mlen := len(remote); mlen > 0 {
-		err := o.Using("default")
-		if err != nil {
+		if err := o.Using("default"); err != nil {
+			AddLogtoChan(err)
 			return err
 		}
 
@@ -478,27 +471,26 @@ func InsertNetInitsOfMachine(remote []NetworkInitiators, uuid string) error {
 			var loc NetworkInitiator
 			num, err := o.QueryTable("network_initiator").Filter("eth__exact", remote[i].Eth).Filter("initiator__exact", remote[i].Initiator).All(&loc) //decide update or not
 			if err != nil {
+				AddLogtoChan(err)
 				return err
 			}
 			one := NetworkInitiator{NetworkInitiators: remote[i], MachineId: uuid}
 
 			if num == 0 {
-				_, err = o.Insert(&one)
-				if err != nil {
+				if _, err := o.Insert(&one); err != nil {
+					AddLogtoChan(err)
 					return err
 				}
 			} else {
-				_, err = o.Update(&one)
-				if err != nil {
+				if _, err := o.Update(&one); err != nil {
+					AddLogtoChan(err)
 					return err
 				}
 			}
-
 		}
 	} else {
-		//TODO !!!!!!!! but if len == 0, nothing you can do
-		err := o.Using("default")
-		if err != nil {
+		if err := o.Using("default"); err != nil {
+			AddLogtoChan(err)
 			return err
 		}
 	}
@@ -509,18 +501,19 @@ func RefreshReNetInits(uuid string) error {
 	o.QueryTable("network_initiator").Filter("machineId", uuid).Delete()
 	name := "remote" + strings.Split(uuid, "zip")[1]
 
-	err := o.Using(name)
-	if err != nil {
-		fmt.Println(err)
+	if err := o.Using(name); err != nil {
+		AddLogtoChan(err)
 		return err
 	}
 
 	ones := make([]NetworkInitiators, 0)
-	_, err = o.QueryTable("network_initiators").All(&ones)
-	if err != nil {
+	if _, err := o.QueryTable("network_initiators").All(&ones); err != nil {
+		AddLogtoChan(err)
 		return err
 	}
-	InsertNetInitsOfMachine(ones, uuid)
+	if err := InsertNetInitsOfMachine(ones, uuid); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -529,11 +522,13 @@ func SelectMulMails(uid int, level int) (bool, error) {
 	var one Mail
 	var two Emergency
 	if _, err := o.QueryTable("mail").Filter("level", level).All(&one); err != nil {
+		AddLogtoChan(err)
 		return two.Status, err
 	}
 	time.Sleep(time.Duration(one.Ttl) * time.Second)
 
 	if _, err := o.QueryTable("emergency").Filter("uid", uid).All(&two); err != nil {
+		AddLogtoChan(err)
 		return two.Status, err
 	}
 	return two.Status, nil
@@ -558,7 +553,7 @@ func InsertJournals(event, machine string) error {
 	one.Created_at = time.Now()
 	one.Updated_at = time.Now()
 	if _, err := o.Insert(&one); err != nil {
-		AddLogtoChan("InsertJournals", err)
+		AddLogtoChan(err)
 		return err
 	}
 
@@ -627,12 +622,13 @@ func messageTransform(event string) (string, string) {
 func RefreshStores(uuid string) error {
 	var one Machine
 
-	err := o.Using("default")
-	if err != nil {
+	if err := o.Using("default"); err != nil {
+		AddLogtoChan(err)
 		return err
 	}
 
 	if _, err := o.QueryTable("machine").Filter("uuid", uuid).All(&one); err != nil {
+		AddLogtoChan(err)
 		return err
 	}
 	if one.Devtype == "export" {

@@ -22,15 +22,14 @@ func main() {
 func socket() {
 	sio := socketio.NewSocketIOServer(&socketio.Config{})
 	sio.Of("/event").On("connect", func(ns *socketio.NameSpace) {
-		AddLogtoChan("connect", nil)
+		AddLogtoChan(nil)
 		go func(ns *socketio.NameSpace) {
 			sub := eventTopic.Subscribe()
 			defer eventTopic.Unsubscribe(sub)
 			for {
 				e := <-sub
-				err := ns.Emit("event", e)
-				if err != nil {
-					AddLogtoChan("socket", err)
+				if err := ns.Emit("event", e); err != nil {
+					AddLogtoChan(err)
 					return
 				}
 			}

@@ -22,24 +22,27 @@ func NsqConsumerInit() {
 }
 
 func handle(msg *consumer.Message) {
-	var dat map[string]interface{}
-	if err := json.Unmarshal(msg.Body, &dat); err != nil {
-		message := fmt.Sprintf("nsq json " + string(msg.Body))
-		AddLogtoChan(message, err)
+	var date map[string]interface{}
+	if err := json.Unmarshal(msg.Body, &date); err != nil {
+		AddLogtoChan(err)
 		WriteConf("unknown.conf", "\nerror(json):"+string(msg.Body))
 		return
 	}
 
-	result := newEvent(dat)
+	machineId, err := analyze(date["ip"].(string))
+	if err != nil {
+		return
+	}
+
+	result := newEvent(date, machineId)
 	if value, ok := result.(error); ok {
-		message := fmt.Sprintf("nsq newEvent " + string(msg.Body))
-		AddLogtoChan(message, value)
+		AddLogtoChan(value)
 		WriteConf("unknown.conf", "\nerror(event):"+string(msg.Body))
 		return
 	}
 
-	if err := RefreshOverViews(dat["ip"].(string), dat["event"].(string)); err != nil {
-		AddLogtoChan("nsq refreshOver ", err)
+	if err := RefreshOverViews(date["ip"].(string), date["event"].(string)); err != nil {
+		AddLogtoChan(err)
 	}
 
 	eventTopic.Publish(result)
@@ -47,11 +50,7 @@ func handle(msg *consumer.Message) {
 	msg.Success()
 }
 
-func newEvent(values map[string]interface{}) interface{} {
-	machineId, err := analyze(values["ip"].(string))
-	if err != nil {
-		return err
-	}
+func newEvent(values map[string]interface{}, machineId string) interface{} {
 
 	switch values["event"].(string) {
 	case "ping.offline", "ping.online":
@@ -94,9 +93,7 @@ func newEvent(values map[string]interface{}) interface{} {
 			Ip:        values["ip"].(string)}
 
 	case "machine.created":
-		if err := InitSingleRemote(values["ip"].(string)); err != nil {
-			return err
-		}
+		InitSingleRemote(values["ip"].(string))
 		return HeartBeat{Event: values["event"].(string),
 			Ip:        values["ip"].(string),
 			MachineId: machineId}
@@ -116,12 +113,12 @@ func analyze(machine string) (string, error) {
 func WriteConf(path string, str string) {
 	fi, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 	if err != nil {
-		AddLogtoChan("nsq read ", err)
+		AddLogtoChan(err)
 	}
 	defer fi.Close()
 
 	final := []byte(str + "\n")
 	if fi.Write(final); err != nil {
-		AddLogtoChan("nsq write ", err)
+		AddLogtoChan(err)
 	}
 }
