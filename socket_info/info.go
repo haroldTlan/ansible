@@ -170,11 +170,11 @@ func AddLogtoChan(apiName string, err error) {
 	var message string
 	var log Log
 	if err == nil {
-		message = fmt.Sprintf("statistics success")
+		message = fmt.Sprintf("[STATIS]statistics success")
 		log = Log{Level: "INFO", Message: message}
 	} else {
 		pc, fn, line, _ := runtime.Caller(1)
-		message = fmt.Sprintf("[%s %s:%d] statistics %s, %s", runtime.FuncForPC(pc).Name(), fn, line, apiName, err)
+		message = fmt.Sprintf("[STATIS][%s %s:%d] %s, %s", runtime.FuncForPC(pc).Name(), fn, line, apiName, err)
 		log = Log{Level: "ERROR", Message: message}
 	}
 
