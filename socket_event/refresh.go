@@ -112,7 +112,7 @@ func AddLogtoChan(err error) {
 	var message string
 	var log Log
 	if err == nil {
-		message = fmt.Sprintf("event success")
+		message = fmt.Sprintf("[EVENT]event success")
 		log = Log{Level: "INFO", Message: message}
 	} else {
 		pc, fn, line, _ := runtime.Caller(1)

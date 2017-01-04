@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/crackcomm/nsqueue/consumer"
-	"os"
 )
 
 var (
@@ -25,7 +24,6 @@ func handle(msg *consumer.Message) {
 	var date map[string]interface{}
 	if err := json.Unmarshal(msg.Body, &date); err != nil {
 		AddLogtoChan(err)
-		WriteConf("unknown.conf", "\nerror(json):"+string(msg.Body))
 		return
 	}
 
@@ -37,7 +35,6 @@ func handle(msg *consumer.Message) {
 	result := newEvent(date, machineId)
 	if value, ok := result.(error); ok {
 		AddLogtoChan(value)
-		WriteConf("unknown.conf", "\nerror(event):"+string(msg.Body))
 		return
 	}
 
@@ -108,17 +105,4 @@ func analyze(machine string) (string, error) {
 	}
 
 	return "", errors.New("Machine is not being monitored")
-}
-
-func WriteConf(path string, str string) {
-	fi, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
-	if err != nil {
-		AddLogtoChan(err)
-	}
-	defer fi.Close()
-
-	final := []byte(str + "\n")
-	if fi.Write(final); err != nil {
-		AddLogtoChan(err)
-	}
 }
