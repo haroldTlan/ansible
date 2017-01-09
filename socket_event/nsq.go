@@ -29,6 +29,7 @@ func handle(msg *consumer.Message) {
 
 	machineId, err := analyze(date["ip"].(string))
 	if err != nil {
+		AddLogtoChan(err)
 		return
 	}
 
@@ -38,8 +39,10 @@ func handle(msg *consumer.Message) {
 		return
 	}
 
-	if err := RefreshOverViews(date["ip"].(string), date["event"].(string)); err != nil {
-		AddLogtoChan(err)
+	if date["event"].(string) != "safety.created" {
+		if err := RefreshOverViews(date["ip"].(string), date["event"].(string)); err != nil {
+			AddLogtoChan(err)
+		}
 	}
 
 	eventTopic.Publish(result)
@@ -94,8 +97,12 @@ func newEvent(values map[string]interface{}, machineId string) interface{} {
 		return HeartBeat{Event: values["event"].(string),
 			Ip:        values["ip"].(string),
 			MachineId: machineId}
-	}
 
+	case "safety.created":
+		return HeartBeat{Event: values["event"].(string),
+			Ip:        values["ip"].(string),
+			MachineId: machineId}
+	}
 	return nil
 }
 

@@ -12,9 +12,8 @@ var o orm.Ormer
 
 func Initdb() {
 	orm.RegisterDriver("mysql", orm.DRMySQL)
-	orm.RegisterDataBase("default", "mysql", "root:passwd@/speediodb?charset=utf8", 30)
+	orm.RegisterDataBase("default", "mysql", "root:passwd@/speediodb?charset=utf8&loc=Local", 30)
 	orm.RegisterModel(new(Machine), new(Disks), new(Disk), new(Raid), new(Raids), new(Volume), new(Volumes), new(Filesystems), new(Xfs), new(Initiator), new(Initiators), new(Emergency), new(RaidVolumes), new(RaidVolume), new(InitiatorVolumes), new(InitiatorVolume), new(NetworkInitiators), new(NetworkInitiator), new(Mail), new(Journal))
-
 	o = orm.NewOrm()
 	InitLocalRemote()
 }
@@ -46,7 +45,7 @@ func MachineType(machine Machine) (string, string) {
 	ip := machine.Ip
 	tempIp := strings.Join(strings.Split(ip, "."), "")
 	name := "remote" + tempIp
-
+	fmt.Println(name)
 	return name, ip
 }
 
@@ -594,6 +593,14 @@ func messageTransform(event string) (string, string) {
 		message := "volume removed"
 		chinese_message := "删除虚拟磁盘"
 		return message, chinese_message
+	case "fs.created":
+		message := "filesystem created"
+		chinese_message := "创建文件系统"
+		return message, chinese_message
+	case "fs.removed":
+		message := "filesystem removed"
+		chinese_message := "删除文件系统"
+		return message, chinese_message
 	case "raid.degraded":
 		message := "raid degraded"
 		chinese_message := "阵列降级"
@@ -613,6 +620,10 @@ func messageTransform(event string) (string, string) {
 	case "volume.normal":
 		message := "volume normal"
 		chinese_message := "虚拟磁盘恢复正常"
+		return message, chinese_message
+	case "safety.created":
+		message := "safety created"
+		chinese_message := "开启数据保险箱"
 		return message, chinese_message
 	default:
 		return "", "未知"
