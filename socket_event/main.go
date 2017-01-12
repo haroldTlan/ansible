@@ -29,7 +29,7 @@ func socket() {
 			for {
 				e := <-sub
 				if err := ns.Emit("event", e); err != nil {
-					AddLogtoChan(err)
+					//AddLogtoChan(err)
 					return
 				}
 			}
