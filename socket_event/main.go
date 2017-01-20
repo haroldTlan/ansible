@@ -14,7 +14,7 @@ func main() {
 	ChanLogEvent = make(chan Log, 1)
 
 	loggerChannel()
-	Initdb()
+	//Initdb()
 	NsqConsumerInit()
 	socket()
 }

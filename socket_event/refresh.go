@@ -3,9 +3,20 @@ package main
 import (
 	"cloud"
 	"fmt"
+	"gopkg.in/yaml.v2"
+	"io/ioutil"
+	"os"
+	"os/exec"
 	"runtime"
+	"strconv"
+	"strings"
 	"time"
 )
+
+type StatInfo struct {
+	Exports  string `json:"exports"`
+	Storages string `json:"storages"`
+}
 
 func RefreshOverViews(ip, event string) error {
 	if err := InsertJournals(event, ip); err != nil {
@@ -23,36 +34,67 @@ func RefreshOverViews(ip, event string) error {
 	switch event {
 
 	case "ping.offline":
+		RefreshStatRemove(one.Uuid)
+		//	RefreshAnsible()
 		if err := DelOutlineMachine(one.Uuid); err != nil {
 			return err
 		}
 
+	case "ping.online":
+		fmt.Println("online!!!!")
+		time.Sleep(4 * time.Second)
+		RefreshStatAdd(one.Ip, one.Devtype)
+		//	RefreshAnsible()
+		if err := RefreshStores(one.Uuid); err != nil {
+			return err
+		}
+
 	default:
-		time.Sleep(19 * time.Second)
 		if err := RefreshStores(one.Uuid); err != nil {
 			return err
 		}
 	}
 
-	/*
-		if event == "ping.offline" {
-			DelOutlineMachine(one.Uuid)
+	return nil
+}
 
-				} else if event == "ping.online" {
-				time.Sleep(15 * time.Second)
-				if err := RefreshStores(one.Uuid); err != nil {
-					AddLogtoChan(err)
-					return err
-				}
+func RefreshInfoMail(result Warning) error {
+	var machine, threshhold string
 
-		} else {
-			time.Sleep(15 * time.Second)
-			if err := RefreshStores(one.Uuid); err != nil {
-				AddLogtoChan(err)
-				return err
-			}
-			time.Sleep(4 * time.Second)
-		}*/
+	switch result.Type {
+	case "cpu":
+		threshhold = "CPU"
+	case "mem":
+		threshhold = "内存"
+	case "cache":
+		threshhold = "缓存"
+	case "sys":
+		threshhold = "系统空间"
+	case "fs":
+		threshhold = "存储空间"
+	default:
+		threshhold = "未知"
+	}
+
+	if err := InsertJournals(result.Event, result.Ip); err != nil { //Insert emergency
+		return err
+	}
+
+	ones := make([]Emergency, 0) //the lastest attention!
+	if _, err := o.QueryTable("emergency").Filter("event", result.Event).Filter("status", 0).All(&ones); err != nil || len(ones) < 1 {
+		return err
+	}
+
+	value := strconv.FormatFloat(result.Value, 'f', 2, 64)
+
+	_, message := messageTransform(result.Event)
+	if result.Ip == "All" {
+		machine = "总览"
+	} else {
+		machine = result.Ip
+	}
+	RefreshMulAttention(ones[len(ones)-1].Uid, machine+message+" "+threshhold+value+"%")
+
 	return nil
 }
 
@@ -68,7 +110,7 @@ func MulAttention(ip, event string) error {
 
 func RefreshMulAttention(uid int, message string) {
 	go func() {
-		if _, err := SelectMulMails(uid, 1); err != nil {
+		if _, err := SelectMulMails(uid, 1); err != nil { //look at the emergency status
 			AddLogtoChan(err)
 		}
 		SendMails(message, 1)
@@ -96,6 +138,59 @@ func RefreshMulAttention(uid int, message string) {
 	}()
 }
 
+func RefreshStatRemove(uuid string) { //auto delete info.yml  monitoring
+	var one Machine
+	if _, err := o.QueryTable("machine").Filter("uuid", uuid).All(&one); err != nil {
+		fmt.Println(err)
+	}
+	ip := one.Ip
+
+	path := "/root/code/yml/vars/info.yml"
+	str := ReadConf(path)
+
+	var stat StatInfo //yml struct
+	var arrs []string
+	yaml.Unmarshal([]byte(str), &stat)
+
+	if one.Devtype == "export" {
+		arr := strings.Split(stat.Exports, ",")
+		for _, val := range arr {
+			if val == ip {
+				continue
+			}
+			arrs = append(arrs, val)
+		}
+		stat.Exports = strings.Join(arrs, ",")
+	} else {
+		arr := strings.Split(stat.Storages, ",")
+		for _, val := range arr {
+			if val == ip {
+				continue
+			}
+			arrs = append(arrs, val)
+		}
+		stat.Storages = strings.Join(arrs, ",")
+	}
+	down, _ := yaml.Marshal(&stat)
+	WriteConf(path, fmt.Sprintf("---\n%s\n", string(down)))
+}
+
+func RefreshStatAdd(ip, devtype string) { //auto add info.yml
+	path := "/root/code/yml/vars/info.yml"
+
+	str := ReadConf(path)
+	var stat StatInfo
+	yaml.Unmarshal([]byte(str), &stat)
+	if devtype == "export" && !strings.Contains(stat.Exports, ip) {
+		stat.Exports = stat.Exports + "," + ip
+	} else if devtype == "storage" && !strings.Contains(stat.Storages, ip) {
+		stat.Storages = stat.Storages + "," + ip
+	}
+
+	down, _ := yaml.Marshal(&stat)
+	WriteConf(path, fmt.Sprintf("---\n%s\n", string(down)))
+}
+
 func SendMails(message string, level int) {
 	ones := make([]Mail, 0)
 	mails := make([]string, 0)
@@ -108,6 +203,15 @@ func SendMails(message string, level int) {
 	cloud.Sendto(mails, message)
 }
 
+func RefreshAnsible() {
+	for i := 0; i < 5; i++ {
+		fmt.Println(i)
+		if _, err := exec.Command("python", "/etc/ansible/info/device.py").Output(); err != nil {
+			AddLogtoChan(err)
+		}
+	}
+}
+
 func AddLogtoChan(err error) {
 	var message string
 	var log Log
@@ -116,10 +220,35 @@ func AddLogtoChan(err error) {
 		log = Log{Level: "INFO", Message: message}
 	} else {
 		pc, fn, line, _ := runtime.Caller(1)
-		message = fmt.Sprintf("[EVENT][%s %s:%d] %s, %s", runtime.FuncForPC(pc).Name(), fn, line, err)
+		message = fmt.Sprintf("[EVENT][%s %s:%d] %s", runtime.FuncForPC(pc).Name(), fn, line, err)
 		log = Log{Level: "ERROR", Message: message}
 	}
 
 	ChanLogEvent <- log
 	return
+}
+
+func ReadConf(path string) string {
+	fi, err := os.Open(path)
+	if err != nil {
+		panic(err)
+	}
+	defer fi.Close()
+	fd, err := ioutil.ReadAll(fi)
+	return string(fd)
+}
+
+func WriteConf(path string, str string) {
+	yaml := []byte(str)
+
+	fi, err := os.Open(path)
+	if err != nil {
+		panic(err)
+	}
+	defer fi.Close()
+	err = ioutil.WriteFile(path, yaml, 0666)
+	if err != nil {
+		panic(err)
+	}
+
 }

@@ -10,9 +10,9 @@ import (
 
 var o orm.Ormer
 
-func Initdb() {
+func init() {
 	orm.RegisterDriver("mysql", orm.DRMySQL)
-	orm.RegisterDataBase("default", "mysql", "root:passwd@/speediodb?charset=utf8&loc=Local", 30)
+	orm.RegisterDataBase("default", "mysql", "root:passwd@/speediodb?charset=utf8&loc=Local", 50, 50)
 	orm.RegisterModel(new(Machine), new(Disks), new(Disk), new(Raid), new(Raids), new(Volume), new(Volumes), new(Filesystems), new(Xfs), new(Initiator), new(Initiators), new(Emergency), new(RaidVolumes), new(RaidVolume), new(InitiatorVolumes), new(InitiatorVolume), new(NetworkInitiators), new(NetworkInitiator), new(Mail), new(Journal))
 	o = orm.NewOrm()
 	InitLocalRemote()
@@ -27,7 +27,7 @@ func InitLocalRemote() {
 	if mlen := len(machines); mlen > 0 {
 		for i := 0; i < mlen; i++ {
 			name, ip := MachineType(machines[i])
-			err := orm.RegisterDataBase(fmt.Sprintf("%s", name), "mysql", fmt.Sprintf("root:passwd@tcp(%s:3306)/speediodb?charset=utf8", ip), 30)
+			err := orm.RegisterDataBase(name, "mysql", "root:passwd@tcp("+ip+":3306)/speediodb?charset=utf8", 30)
 			if err != nil {
 				AddLogtoChan(err)
 				return
@@ -37,15 +37,14 @@ func InitLocalRemote() {
 }
 
 func InitSingleRemote(ip string) {
-	name := strings.Join(strings.Split(ip, "."), "")
-	orm.RegisterDataBase(fmt.Sprintf("%s", name), "mysql", fmt.Sprintf("root:passwd@tcp(%s:3306)/speediodb?charset=utf8", ip), 30)
+	name := "remote" + strings.Join(strings.Split(ip, "."), "")
+	orm.RegisterDataBase(name, "mysql", "root:passwd@tcp("+ip+":3306)/speediodb?charset=utf8", 30)
 }
 
 func MachineType(machine Machine) (string, string) {
 	ip := machine.Ip
 	tempIp := strings.Join(strings.Split(ip, "."), "")
 	name := "remote" + tempIp
-	fmt.Println(name)
 	return name, ip
 }
 
@@ -54,12 +53,14 @@ func SelectMachine(ip string) (int64, Machine, error) {
 	num, err := o.QueryTable("machine").Filter("ip", ip).All(&one)
 	if err != nil {
 		AddLogtoChan(err)
+		fmt.Println(o.Driver().Name())
 		return 0, one, err
 	}
 	return num, one, nil
 }
 
 func InsertDisksOfMachine(redisks []Disks, uuid string) error {
+	o := orm.NewOrm()
 	if mlen := len(redisks); mlen > 0 {
 		if err := o.Using("default"); err != nil {
 			AddLogtoChan(err)
@@ -70,8 +71,10 @@ func InsertDisksOfMachine(redisks []Disks, uuid string) error {
 			var loc Disk
 			num, err := o.QueryTable("disk").Filter("uuid__exact", redisks[i].Uuid).Filter("machineId__exact", uuid).All(&loc) //decide update or not
 			if err != nil {
+				fmt.Println(o.Driver().Name())
 				AddLogtoChan(err)
 				return err
+
 			}
 			one := Disk{Disks: redisks[i], MachineId: uuid}
 			if num == 0 {
@@ -522,6 +525,7 @@ func SelectMulMails(uid int, level int) (bool, error) {
 	var two Emergency
 	if _, err := o.QueryTable("mail").Filter("level", level).All(&one); err != nil {
 		AddLogtoChan(err)
+		fmt.Println(o.Driver().Name())
 		return two.Status, err
 	}
 	time.Sleep(time.Duration(one.Ttl) * time.Second)
@@ -536,7 +540,7 @@ func SelectMulMails(uid int, level int) (bool, error) {
 func InsertJournals(event, machine string) error {
 	var one Emergency
 	switch event {
-	case "ping.offline", "disk.unplugged", "raid.degraded", "volume.failed", "raid.failed":
+	case "ping.offline", "disk.unplugged", "raid.degraded", "volume.failed", "raid.failed", "info.warning":
 		one.Level = "warning"
 		one.Status = false
 	default:
@@ -624,6 +628,10 @@ func messageTransform(event string) (string, string) {
 	case "safety.created":
 		message := "safety created"
 		chinese_message := "开启数据保险箱"
+		return message, chinese_message
+	case "info.warning":
+		message := "info warning"
+		chinese_message := "负载过高"
 		return message, chinese_message
 	default:
 		return "", "未知"

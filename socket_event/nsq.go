@@ -21,37 +21,57 @@ func NsqConsumerInit() {
 }
 
 func handle(msg *consumer.Message) {
-	var date map[string]interface{}
-	if err := json.Unmarshal(msg.Body, &date); err != nil {
+	var data map[string]interface{}
+	if err := json.Unmarshal(msg.Body, &data); err != nil {
 		AddLogtoChan(err)
 		return
 	}
 
-	machineId, err := analyze(date["ip"].(string))
-	if err != nil {
-		AddLogtoChan(err)
-		return
-	}
-
-	result := newEvent(date, machineId)
-	if value, ok := result.(error); ok {
-		AddLogtoChan(value)
-		return
-	}
-
-	if date["event"].(string) != "safety.created" {
-		if err := RefreshOverViews(date["ip"].(string), date["event"].(string)); err != nil {
-			AddLogtoChan(err)
-		}
-	}
+	result := eventJugde(data)
 
 	eventTopic.Publish(result)
 	fmt.Printf("%+v\n", result)
 	msg.Success()
 }
 
-func newEvent(values map[string]interface{}, machineId string) interface{} {
+func eventJugde(values map[string]interface{}) interface{} {
+	switch values["event"].(string) {
+	case "safety.created":
+		return Safety{Event: values["event"].(string),
+			Ip: values["ip"].(string)}
 
+	case "info.warning", "info.normal":
+		result := Warning{Event: values["event"].(string),
+			Type:   values["type"].(string),
+			Ip:     values["ip"].(string),
+			Value:  values["value"].(float64),
+			Status: values["status"].(string)}
+		if result.Status == "true" {
+			if err := RefreshInfoMail(result); err != nil {
+				AddLogtoChan(err)
+			}
+		}
+		return result
+
+	default:
+		machineId, err := analyze(values["ip"].(string))
+		if err != nil {
+			fmt.Println(err)
+			return err
+		}
+		result := newEvent(values, machineId)
+		if value, ok := result.(error); ok {
+			AddLogtoChan(value)
+			return nil
+		}
+		if err := RefreshOverViews(values["ip"].(string), values["event"].(string)); err != nil {
+			AddLogtoChan(err)
+		}
+		return result
+	}
+}
+
+func newEvent(values map[string]interface{}, machineId string) interface{} {
 	switch values["event"].(string) {
 	case "ping.offline", "ping.online":
 		return HeartBeat{Event: values["event"].(string),
@@ -98,10 +118,6 @@ func newEvent(values map[string]interface{}, machineId string) interface{} {
 			Ip:        values["ip"].(string),
 			MachineId: machineId}
 
-	case "safety.created":
-		return HeartBeat{Event: values["event"].(string),
-			Ip:        values["ip"].(string),
-			MachineId: machineId}
 	}
 	return nil
 }
