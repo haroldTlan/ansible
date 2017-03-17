@@ -55,6 +55,14 @@ type Log struct {
 	Source     string `json:"scource"`
 }
 
+type Detection struct {
+	Mem    float64 `json:"mem"`
+	Cpu    float64 `json:"cpu"`
+	CacheT float64 `json:"cache_total"`
+	SysT   float64 `json:"system_total"`     //system total
+	FsT    float64 `json:"filesystem_total"` //filesystem total
+}
+
 func InfoStat() {
 	go func() {
 		for {
@@ -89,7 +97,7 @@ func InfoStat() {
 			}
 
 			statTopic.Publish(allInfo)
-
+			Detecting(allInfo)
 		}
 	}()
 
@@ -114,39 +122,41 @@ func dfAssert(items []interface{}) []Df {
 
 func transform(items map[string]interface{}) Device {
 	var masterAll Device
+	infos := make([]StoreView, 0)
 
 	masterAll.Ip = items["ip"].(string)
-	infos := make([]StoreView, 0)
 	results := items["result"].([]interface{})
 
 	if len(results) > 0 {
 		var info StoreView
+		j := results[len(results)-1]
+		item_dfs := make([]Df, 0)
+		vals := j.(map[string]interface{})
+		item_float64 := map[string]float64{}
 
-		for _, j := range results {
-			item_dfs := make([]Df, 0)
-			vals := j.(map[string]interface{})
-			item_float64 := map[string]float64{}
-
-			for k, v := range vals {
-				if _, ok := v.([]interface{}); ok {
-					item_dfs = dfAssert(v.([]interface{}))
-				} else if _, ok := v.(float64); ok {
-					item_float64[k] = v.(float64)
-				}
-
+		for k, v := range vals {
+			if _, ok := v.([]interface{}); ok {
+				item_dfs = dfAssert(v.([]interface{}))
+			} else if _, ok := v.(float64); ok {
+				item_float64[k] = v.(float64)
 			}
 
-			info.Dfs = item_dfs
-			info.Cpu = item_float64["cpu"]
-			info.Mem = item_float64["mem"]
-			info.Temp = item_float64["temp"]
-			info.Write = item_float64["nwrite_mb"]
-			info.Read = item_float64["nread_mb"]
-			info.TimeStamp = item_float64["timestamp"]
-			infos = append(infos, info)
 		}
+
+		info.Dfs = item_dfs
+		info.Cpu = item_float64["cpu"]
+		info.Mem = item_float64["mem"]
+		info.Temp = item_float64["temp"]
+		info.CacheT = item_float64["rdcache_t"]
+		info.CacheU = item_float64["rdcache_u"]
+		info.R_Vol = item_float64["rvol_mb"]
+		info.W_Vol = item_float64["wvol_mb"]
+		info.Write = item_float64["nwrite_mb"]
+		info.Read = item_float64["nread_mb"]
+		info.TimeStamp = item_float64["timestamp"]
+		infos = append(infos, info)
 	}
-	masterAll.Dev = infos[len(infos)-1 : len(infos)]
+	masterAll.Dev = infos
 	return masterAll
 }
 

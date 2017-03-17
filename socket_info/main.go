@@ -9,10 +9,13 @@ import (
 
 var statTopic = topic.New()
 var ChanLogInfo chan Log
+var CpuNum, MemNum, CacheNum, SysNum, FsNum int
 
 func main() {
 	ChanLogInfo = make(chan Log, 1)
 
+	NsqInit()
+	Initdb()
 	LoggerChannel()
 	ansible()
 	InfoStat()
@@ -31,7 +34,6 @@ func socket() {
 				stat := <-sub
 				err := ns.Emit("statistics", stat)
 				if err != nil {
-					AddLogtoChan("socket", err)
 					return
 				}
 			}
